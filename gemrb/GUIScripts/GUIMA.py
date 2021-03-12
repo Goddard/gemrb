@@ -42,8 +42,8 @@ if GameCheck.IsIWD2():
 	WIDTH = 800
 	HEIGHT = 600
 else:
-	WIDTH = 640
-	HEIGHT = 480
+	WIDTH = 640*4
+	HEIGHT = 480*4
 
 def RevealMap ():
 	global MapWindow
@@ -105,7 +105,7 @@ def ShowMap ():
 	GemRB.HideGUI ()
 	GUICommon.GameWindow.SetVisible(WINDOW_INVISIBLE)
 
-	GemRB.LoadWindowPack ("GUIMAP", 640, 480)
+	GemRB.LoadWindowPack ("GUIMAP", 640*4, 480*4)
 	MapWindow = Window = GemRB.LoadWindow (2)
 	#this window type blocks the game normally, but map window doesn't
 	GemRB.SetVar ("OtherWindow", MapWindow.ID)
@@ -395,7 +395,7 @@ def WorldMapWindowCommon (Travel):
 		GemRB.LoadWindowPack ("GUIWMAP",800, 600)
 		WorldMapWindow = Window = GemRB.LoadWindow (2)
 	else:
-		GemRB.LoadWindowPack ("GUIWMAP", 640, 480)
+		GemRB.LoadWindowPack ("GUIWMAP", 640*4, 480*4)
 		WorldMapWindow = Window = GemRB.LoadWindow (0)
 
 	#(fuzzie just copied this from the map window code..)

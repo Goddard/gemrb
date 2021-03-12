@@ -37,6 +37,7 @@
 #include "GUI/Window.h"
 
 using namespace GemRB;
+bool upscale = true;
 
 CHUImporter::CHUImporter()
 {
@@ -84,8 +85,8 @@ Window* CHUImporter::GetWindow(unsigned int wid)
 
 	bool found = false;
 	for (unsigned int c = 0; c < WindowCount; c++) {
-		str->Seek( WEOffset + ( 0x1c * c ), GEM_STREAM_START );
-		str->ReadWord( &WindowID );
+		str->Seek(WEOffset + (0x1c * c), GEM_STREAM_START);
+		str->ReadWord(&WindowID);
 		if (WindowID == wid) {
 			found = true;
 			break;
@@ -94,17 +95,21 @@ Window* CHUImporter::GetWindow(unsigned int wid)
 	if (!found) {
 		return NULL;
 	}
-	str->Seek( 2, GEM_CURRENT_POS );
-	str->ReadWord( &XPos );
-	str->ReadWord( &YPos );
-	str->ReadWord( &Width );
-	str->ReadWord( &Height );
-	str->ReadWord( &BackGround );
-	str->ReadWord( &ControlsCount );
-	str->ReadResRef( MosFile );
-	str->ReadWord( &FirstControl );
+	str->Seek(2, GEM_CURRENT_POS);
+	str->ReadWord(&XPos);
+	str->ReadWord(&YPos);
+	str->ReadWord(&Width);
+	str->ReadWord(&Height);
+	str->ReadWord(&BackGround);
+	str->ReadWord(&ControlsCount);
+	str->ReadResRef(MosFile);
+	str->ReadWord(&FirstControl);
 
-	Window* win = new Window( WindowID, XPos, YPos, Width, Height );
+	Window* win = new Window(WindowID, XPos, YPos, Width, Height);
+	if (upscale == true) {
+		win = new Window(WindowID, XPos*4, YPos * 4, Width * 4, Height * 4);
+	}
+
 	if (BackGround == 1) {
 		ResourceHolder<ImageMgr> mos = GetResourceHolder<ImageMgr>(MosFile);
 		if (mos != nullptr) {
@@ -126,13 +131,13 @@ Window* CHUImporter::GetWindow(unsigned int wid)
 		str->Seek( COffset, GEM_STREAM_START );
 		str->ReadDword( &ControlID );
 		str->ReadWord( &tmp );
-		ctrlFrame.x = tmp;
+		ctrlFrame.x = tmp * 4;
 		str->ReadWord( &tmp);
-		ctrlFrame.y = tmp;
+		ctrlFrame.y = tmp * 4;
 		str->ReadWord( &tmp );
-		ctrlFrame.w = tmp;
+		ctrlFrame.w = tmp * 4;
 		str->ReadWord( &tmp );
-		ctrlFrame.h = tmp;
+		ctrlFrame.h = tmp * 4;
 		str->Read( &ControlType, 1 );
 		str->Read( &temp, 1 );
 		switch (ControlType) {
@@ -232,7 +237,7 @@ Window* CHUImporter::GetWindow(unsigned int wid)
 				str->ReadWord( &CapYPos );
 				Progressbar* pbar = new Progressbar(ctrlFrame, KnobStepsCount, true );
 				pbar->ControlID = ControlID;
-				pbar->SetSliderPos( KnobXPos, KnobYPos, CapXPos, CapYPos );
+				pbar->SetSliderPos( KnobXPos*4, KnobYPos*4, CapXPos*4, CapYPos*4 );
 
 				Sprite2D* img = NULL;
 				Sprite2D* img2 = NULL;
@@ -280,7 +285,7 @@ Window* CHUImporter::GetWindow(unsigned int wid)
 				str->ReadWord( &KnobYPos );
 				str->ReadWord( &KnobStep );
 				str->ReadWord( &KnobStepsCount );
-				Slider* sldr = new Slider( ctrlFrame, KnobXPos, KnobYPos, KnobStep, KnobStepsCount, true );
+				Slider* sldr = new Slider( ctrlFrame, KnobXPos*4, KnobYPos*4, KnobStep, KnobStepsCount, true );
 				sldr->ControlID = ControlID;
 				ResourceHolder<ImageMgr> mos = GetResourceHolder<ImageMgr>(MOSFile);
 				Sprite2D* img = mos->GetSprite2D();
@@ -350,7 +355,7 @@ Window* CHUImporter::GetWindow(unsigned int wid)
 					img = mos->GetSprite2D();
 				}
 
-				TextEdit* te = new TextEdit( ctrlFrame, maxInput, PosX, PosY );
+				TextEdit* te = new TextEdit( ctrlFrame, maxInput, PosX*4, PosY*4 );
 				te->ControlID = ControlID;
 				te->SetFont( fnt );
 				te->SetCursor( cursor );

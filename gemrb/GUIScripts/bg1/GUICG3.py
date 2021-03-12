@@ -46,7 +46,7 @@ def OnLoad():
 
 	AlignmentOk = GemRB.LoadTable("ALIGNMNT")
 
-	GemRB.LoadWindowPack("GUICG", 640, 480)
+	GemRB.LoadWindowPack("GUICG", 640*4, 480*4)
 	AlignmentWindow = GemRB.LoadWindow(3)
 
 	# This section enables or disables different alignment selections

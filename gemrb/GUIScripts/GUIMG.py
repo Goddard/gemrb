@@ -82,7 +82,7 @@ def OpenMageWindow ():
 	GemRB.HideGUI ()
 	GUICommon.GameWindow.SetVisible(WINDOW_INVISIBLE)
 
-	GemRB.LoadWindowPack ("GUIMG", 640, 480)
+	GemRB.LoadWindowPack ("GUIMG", 640*4, 480*4)
 
 	#saving the original portrait window
 	OldOptionsWindow = GUICommonWindows.OptionsWindow
@@ -489,7 +489,7 @@ def OpenSequencerWindow ():
 	if Count > 3:
 		Count = 3
 
-	GemRB.LoadWindowPack ("GUIMG", 640, 480)
+	GemRB.LoadWindowPack ("GUIMG", 640*4, 480*4)
 
 	#saving the original portrait window
 	OtherWindow = Window = GemRB.LoadWindow (6)

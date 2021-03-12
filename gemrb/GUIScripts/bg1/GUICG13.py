@@ -45,7 +45,7 @@ def OnLoad():
 	global HairButton, SkinButton, MajorButton, MinorButton
 	global HairColor, SkinColor, MinorColor, MajorColor
 	
-	GemRB.LoadWindowPack("GUICG", 640, 480)
+	GemRB.LoadWindowPack("GUICG", 640*4, 480*4)
 	ColorWindow=GemRB.LoadWindow(13)
 	GUICommon.CloseOtherWindow (ColorWindow.Unload)
 

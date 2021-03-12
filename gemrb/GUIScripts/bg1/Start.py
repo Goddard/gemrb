@@ -40,7 +40,11 @@ def OnLoad():
 		GemRB.PlayMovie ('INTRO',1)
 		GemRB.SetVar ("SkipIntroVideos", 1)
 
-	GemRB.LoadWindowPack("START", 640, 480)
+	upscale_factor = 1 #GemRB.GetVar("UpScaleFactor")
+	if not upscale_factor:
+		GemRB.SetVar ("UpScaleFactor", 1)
+
+	GemRB.LoadWindowPack("START", 640*upscale_factor, 480*upscale_factor)
 
 	#quit subwindow
 	QuitWindow = GemRB.LoadWindow(3)

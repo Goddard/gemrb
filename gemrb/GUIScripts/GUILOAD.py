@@ -39,7 +39,7 @@ def OnLoad ():
 	if GameCheck.IsIWD1():
 		GemRB.SetVar ("PlayMode", 0) # old code, not sure if needed
 	GUICommon.SetSaveDir ()
-	GemRB.LoadWindowPack ("GUILOAD", 640, 480)
+	GemRB.LoadWindowPack ("GUILOAD", 640*4, 480*4)
 	LoadWindow = GemRB.LoadWindow (0)
 	LoadWindow.SetFrame ()
 

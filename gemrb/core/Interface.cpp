@@ -225,6 +225,7 @@ Interface::Interface()
 	GamePortraitsPath[0] = 0;
 	GameCharactersPath[0] = 0;
 	GameDataPath[0] = 0;
+	UpScaleFactor = 1;
 
 	strlcpy( INIConfig, "baldur.ini", sizeof(INIConfig) );
 
@@ -1341,6 +1342,7 @@ int Interface::Init(InterfaceConfig* config)
 	CONFIG_INT("NumFingKboard", NumFingKboard = );
 	CONFIG_INT("NumFingInfo", NumFingInfo = );
 	CONFIG_INT("MouseFeedback", MouseFeedback = );
+	CONFIG_INT("UpScaleFactor", UpScaleFactor = );
 
 #undef CONFIG_INT
 
@@ -1801,6 +1803,9 @@ int Interface::Init(InterfaceConfig* config)
 	vars->SetAt( "SkipIntroVideos", (unsigned long)SkipIntroVideos );
 	vars->SetAt( "GUIEnhancements", (unsigned long)GUIEnhancements );
 	vars->SetAt( "TouchScrollAreas", (unsigned long)TouchScrollAreas );
+
+	//allow adjustment to interface sizes based on scale factor
+	vars->SetAt( "UpScaleFactor", (unsigned long)UpScaleFactor );
 
 	Log(MESSAGE, "Core", "Initializing Token Dictionary...");
 	tokens = new Variables();

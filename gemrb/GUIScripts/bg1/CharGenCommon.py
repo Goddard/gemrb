@@ -58,7 +58,7 @@ class CharGen:
 		if(self.window): 
 			CharGenWindow = self.window
 		else:
-			GemRB.LoadWindowPack ("GUICG", 640, 480)
+			GemRB.LoadWindowPack ("GUICG", 640*4, 480*4)
 			CharGenWindow = GemRB.LoadWindow (0)
 			CharGenWindow.SetFrame ()
 	

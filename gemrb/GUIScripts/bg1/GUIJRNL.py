@@ -70,7 +70,7 @@ def OpenJournalWindow ():
 	GemRB.HideGUI ()
 	GUICommon.GameWindow.SetVisible(WINDOW_INVISIBLE)
 	
-	GemRB.LoadWindowPack ("GUIJRNL", 640, 480)
+	GemRB.LoadWindowPack ("GUIJRNL", 640*4, 480*4)
 	JournalWindow = Window = GemRB.LoadWindow (2)
 	GemRB.SetVar ("OtherWindow", JournalWindow.ID)
 	#saving the original portrait window

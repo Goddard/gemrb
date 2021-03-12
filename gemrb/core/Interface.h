@@ -832,6 +832,7 @@ public:
 	bool MultipleQuickSaves;
 	bool UseCorruptedHack;
 	int FeedbackLevel;
+	int UpScaleFactor;
 
 	Variables *plugin_flags;
 	/** The Main program loop */

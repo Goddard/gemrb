@@ -32,7 +32,7 @@ def SetLoadScreen ():
 def StartLoadScreen ():
 	global LoadScreen
 
-	GemRB.LoadWindowPack ("guils", 640, 480)
+	GemRB.LoadWindowPack ("guils", 640*4, 480*4)
 	LoadScreen = GemRB.LoadWindow (0)
 	LoadScreen.SetFrame ()
 	Middle = LoadScreen.GetControl (4)

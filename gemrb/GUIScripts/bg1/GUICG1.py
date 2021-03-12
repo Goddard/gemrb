@@ -37,7 +37,7 @@ def OnLoad():
 			GenderWindow = None
 		return
 	
-	GemRB.LoadWindowPack("GUICG", 640, 480)
+	GemRB.LoadWindowPack("GUICG", 640*4, 480*4)
 	
 	GenderWindow = GemRB.LoadWindow(1)
 

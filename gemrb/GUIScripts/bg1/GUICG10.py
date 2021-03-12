@@ -32,7 +32,7 @@ DoneButton = 0
 def OnLoad():
 	global ClassWindow, TextAreaControl, DoneButton
 
-	GemRB.LoadWindowPack("GUICG", 640, 480)
+	GemRB.LoadWindowPack("GUICG", 640*4, 480*4)
 	ClassWindow = GemRB.LoadWindow(10)
 
 	GUICommon.CloseOtherWindow (ClassWindow.Unload)

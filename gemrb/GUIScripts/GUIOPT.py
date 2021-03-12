@@ -62,8 +62,8 @@ if GameCheck.IsIWD2():
 	WIDTH = 800
 	HEIGHT = 600
 else:
-	WIDTH = 640
-	HEIGHT = 480
+	WIDTH = 640*4
+	HEIGHT = 480*4
 
 ###################################################
 def CloseOptionsWindow ():

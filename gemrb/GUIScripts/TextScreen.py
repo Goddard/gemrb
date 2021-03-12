@@ -82,7 +82,7 @@ def StartTextScreen ():
 	if GameCheck.IsIWD2():
 		GemRB.LoadWindowPack ("GUICHAP", 800, 600)
 	else:
-		GemRB.LoadWindowPack ("GUICHAP", 640, 480)
+		GemRB.LoadWindowPack ("GUICHAP", 640*4, 480*4)
 
 	Table = GemRB.LoadTable (TableName)
 	if GameCheck.IsBG2():

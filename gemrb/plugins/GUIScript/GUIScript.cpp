@@ -942,9 +942,9 @@ static PyObject* GemRB_LoadWindow(PyObject * /*self*/, PyObject* args)
 	// other than the current one, reposition them
 	Window* win = core->GetWindow( ret );
 	if (CHUWidth && CHUWidth != core->Width)
-		win->XPos += (core->Width - CHUWidth) / 2;
+		win->XPos += (core->Width - (CHUWidth*4)) / 2;
 	if (CHUHeight && CHUHeight != core->Height)
-		win->YPos += (core->Height - CHUHeight) / 2;
+		win->YPos += (core->Height - (CHUHeight*4)) / 2;
 
 	return gs->ConstructObject("Window", ret);
 }

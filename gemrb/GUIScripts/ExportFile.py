@@ -30,7 +30,7 @@ TextAreaControl = 0
 def OnLoad():
 	global ExportWindow, TextAreaControl
 
-	GemRB.LoadWindowPack ("GUICG", 640, 480)
+	GemRB.LoadWindowPack ("GUICG", 640*4, 480*4)
 	ExportWindow = GemRB.LoadWindow (21)
 
 	if GameCheck.IsBG1():

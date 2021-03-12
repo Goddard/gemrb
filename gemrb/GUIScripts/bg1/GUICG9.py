@@ -39,7 +39,7 @@ def RedrawSkills():
 def OnLoad():
 	global SkillWindow, DoneButton
 	
-	GemRB.LoadWindowPack("GUICG", 640, 480)
+	GemRB.LoadWindowPack("GUICG", 640*4, 480*4)
 	SkillWindow = GemRB.LoadWindow(9)
 
 	GUICommon.CloseOtherWindow(SkillWindow.Unload)

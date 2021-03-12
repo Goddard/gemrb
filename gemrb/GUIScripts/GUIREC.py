@@ -91,7 +91,7 @@ def OpenRecordsWindow ():
 	GemRB.HideGUI ()
 	GUICommon.GameWindow.SetVisible(WINDOW_INVISIBLE)
 
-	GemRB.LoadWindowPack ("GUIREC", 640, 480)
+	GemRB.LoadWindowPack ("GUIREC", 640*4, 480*4)
 	RecordsWindow = Window = GemRB.LoadWindow (2)
 	GemRB.SetVar ("OtherWindow", RecordsWindow.ID)
 	# saving the original portrait window
