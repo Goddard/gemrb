@@ -66,6 +66,12 @@ public:
 		return cycles.size();
 	}
 
+	// Custom methods for Project-IE-4k
+	const Palette* GetPalettePtr() const { return palette.get(); }
+	//const std::vector<FrameEntry>& GetFrames() const { return frames; }
+	//const std::vector<CycleEntry>& GetCycles() const { return cycles; }
+	//Holder<Sprite2D> GetV2FramePublic(const FrameEntry& frame) { return GetV2Frame(frame); }
+
 private:
 	using CycleEntry = AnimationFactory::CycleEntry;
 
