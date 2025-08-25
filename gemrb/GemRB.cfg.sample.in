@@ -57,6 +57,9 @@ Bpp=32
 # Choices: best (default), linear, nearest
 #ScaleQuality = best
 
+# UpScaleFactor to change actor, projectile, and some ovarlays
+#UpScaleFactor = 4
+
 # Cap FPS, 0 = request VSync (SDL2 only, default), -1 = no limit, 30+ = cap value
 #CapFPS=0
 

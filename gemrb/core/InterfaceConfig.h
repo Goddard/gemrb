@@ -102,6 +102,8 @@ struct CoreSettings {
 	bool CheatFlag = true; /** Cheats enabled? */
 	int MaxPartySize = 6;
 	int GUIEnhancements = 23;
+	// Scales the rendered image by an integer factor (>=1)
+	int UpScaleFactor = 1;
 
 	bool KeepCache = false;
 	bool MultipleQuickSaves = false;

@@ -149,6 +149,10 @@ Use the specified quality for the texture scaling filter. The default is
 .IR best .
 
 .TP
+.BR UpScaleFactor =INT
+UpScaleFactor to change actor, projectile, and some ovarlays
+
+.TP
 .BR CapFPS =(-1|0|n)
 Set FPS handling:
   -1: no limit

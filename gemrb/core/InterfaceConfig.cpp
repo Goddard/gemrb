@@ -163,6 +163,7 @@ CoreSettings LoadFromDictionary(InterfaceConfig cfg)
 	CONFIG_INT("DoubleClickDelay", config.DoubleClickDelay);
 	CONFIG_INT("DrawFPS", config.DrawFPS);
 	CONFIG_INT("CapFPS", config.CapFPS);
+	CONFIG_INT("UpScaleFactor", config.UpScaleFactor);
 	CONFIG_INT("FullScreen", config.FullScreen);
 	CONFIG_INT("EnableCheatKeys", config.CheatFlag);
 	CONFIG_INT("GCDebug", config.DebugFlags);
