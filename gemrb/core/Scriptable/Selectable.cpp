@@ -19,6 +19,8 @@
 
 #include "Selectable.h"
 
+#include "Interface.h"
+
 #include "GUI/GUIAnimation.h"
 #include "Video/Video.h"
 
@@ -67,7 +69,9 @@ void Selectable::DrawCircle(const Point& p) const
 	if (sprite) {
 		VideoDriver->BlitSprite(sprite, Pos - p);
 	} else {
-		auto baseSize = CircleSize2Radius() * sizeFactor;
+		// Scale ellipse by configuration factor to match pre-scaled assets when no sprite is present
+		const int ups = core->config.UpScaleFactor;
+		auto baseSize = (int) (CircleSize2Radius() * sizeFactor * ups);
 		const Size s(baseSize * 8, baseSize * 6);
 		const Region r(Pos - p - s.Center(), s);
 		VideoDriver->DrawEllipse(r, *col);
@@ -82,15 +86,38 @@ bool Selectable::IsOver(const Point& P) const
 
 bool Selectable::IsOver(const Point& P, const Point& CenterPos) const
 {
-	int csize = circleSize;
-	if (csize < 2) {
-		Point d = P - CenterPos;
-		if (d.x < -16 || d.x > 16) return false;
-		if (d.y < -12 || d.y > 12) return false;
+	// Mirror DrawCircle(): decide which sprite would be used visually
+	Holder<Sprite2D> sprite = circleBitmap[0];
+	if (Selected && !Over) {
+		sprite = circleBitmap[1];
+	}
+
+	if (sprite) {
+		// Rectangle hit-test based on the actual sprite frame size, centered on CenterPos
+		const int halfW = sprite->Frame.w / 2;
+		const int halfH = sprite->Frame.h / 2;
+		const Point d = P - CenterPos;
+		if (d.x < -halfW || d.x > halfW) return false;
+		if (d.y < -halfH || d.y > halfH) return false;
 		return true;
 	}
-	// TODO: make sure to match the actual blocking shape; use GetEllipseSize/GetEllipseOffset instead?
-	return P.IsWithinEllipse(csize - 1, CenterPos);
+
+	// Ellipse hit-test mirroring the ellipse we draw in DrawCircle()
+	// base radii are derived from CircleSize2Radius(), sizeFactor and UpScaleFactor
+	const int ups = core->config.UpScaleFactor;
+	const int baseSize = (int) (CircleSize2Radius() * sizeFactor) * ups;
+	const int rx = (baseSize * 8) / 2; // half width
+	const int ry = (baseSize * 6) / 2; // half height
+	const Point d = P - CenterPos;
+
+	// Avoid floating point: test (dx^2 / rx^2) + (dy^2 / ry^2) <= 1
+	const long long dx = d.x;
+	const long long dy = d.y;
+	const long long rx2 = (long long) rx * rx;
+	const long long ry2 = (long long) ry * ry;
+	const long long lhs = dx * dx * ry2 + dy * dy * rx2;
+	const long long rhs = rx2 * ry2;
+	return lhs <= rhs;
 }
 
 bool Selectable::IsSelected() const
