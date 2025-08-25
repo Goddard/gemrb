@@ -414,6 +414,11 @@ void GameControl::DrawTargetReticle(uint16_t size, const Color& color, const Poi
 void GameControl::DrawTargetReticle(const Movable* target, const Point& p, int offset) const
 {
 	int size = target->CircleSize2Radius();
+	// Scale by UpScaleFactor so the destination/click reticle matches pre-scaled assets/world
+	const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+	if (ups > 1) {
+		size *= ups;
+	}
 	const Color& green = target->selectedColor;
 	const Color& color = (target->Over) ? GlobalColorCycle.Blend(target->overColor, green) : green;
 
