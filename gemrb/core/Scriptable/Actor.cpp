@@ -5251,7 +5251,13 @@ int Actor::CalculateSpeedFromRate(bool feedback) const
 		movementRate /= encumbranceFactor;
 	}
 	if (movementRate) {
-		return 1500 / movementRate;
+		// Scale by UpScaleFactor so movement matches pre-scaled world/assets
+		const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+		int speed = 1500 / movementRate;
+		if (ups > 1) {
+			speed = std::max(1, speed / ups);
+		}
+		return speed;
 	} else {
 		return 0;
 	}
@@ -5280,6 +5286,13 @@ int Actor::CalculateSpeedFromINI(bool feedback) const
 		newSpeed *= encumbranceFactor;
 	} else {
 		newSpeed = 0;
+	}
+	// Scale by UpScaleFactor so movement matches pre-scaled world/assets
+	if (newSpeed > 0) {
+		const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+		if (ups > 1) {
+			newSpeed = std::max(1, newSpeed / ups);
+		}
 	}
 	return newSpeed;
 }
