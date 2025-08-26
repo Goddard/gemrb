@@ -2493,7 +2493,20 @@ bool GameControl::OnMouseWheelScroll(const Point& delta)
 		step = 10; // zoom out
 	// horizontal wheel (delta.x) is ignored for now
 
-	int newZoom = Clamp(oldZoom + step, 50, 200);
+	// Compute dynamic zoom bounds based on UpScaleFactor so perceived zoom range stays consistent
+	int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+	const double sEffMin = 2.0; // desired min effective scale (max zoom out) relative to base assets
+	const double sEffMax = 8.0; // desired max effective scale (max zoom in) relative to base assets
+	const double sMin = sEffMin / (double) ups; // world->screen scale at max zoom out
+	const double sMax = sEffMax / (double) ups; // world->screen scale at max zoom in
+	int minZoomAllowed = (int) std::lround(100.0 / sMax); // smaller value => zooms in further
+	int maxZoomAllowed = (int) std::lround(100.0 / sMin); // larger value => zooms out further
+	// sanity clamp and ordering
+	if (minZoomAllowed < 10) minZoomAllowed = 10;
+	if (maxZoomAllowed > 1000) maxZoomAllowed = 1000;
+	if (minZoomAllowed > maxZoomAllowed) std::swap(minZoomAllowed, maxZoomAllowed);
+	int newZoom = Clamp(oldZoom + step, minZoomAllowed, maxZoomAllowed);
+
 	if (newZoom != oldZoom) {
 		game->zoomLevel = (ieDword) newZoom;
 		Log(MESSAGE, "GameControl", "MouseWheel dy={} zoomLevel: {} -> {}", delta.y, oldZoom, newZoom);
