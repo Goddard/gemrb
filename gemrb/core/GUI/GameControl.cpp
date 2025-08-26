@@ -1760,33 +1760,44 @@ bool GameControl::MoveViewportTo(Point p, bool center, int speed)
 
 		Size mapsize = area->GetSize();
 
+		// Compute world-visible size using current zoom scale
+		const Game* game = core->GetGame();
+		float scale = 1.0f;
+		if (game) {
+			int zl = game->zoomLevel ? (int) game->zoomLevel : 100;
+			scale = 100.0f / (float) zl;
+		}
+		const int visW = (int) std::lround((double) frame.w / (double) scale);
+		const int visH = (int) std::lround((double) frame.h / (double) scale);
 		if (center) {
-			// should we account for the message window height here too?
-			p.x -= frame.w / 2;
-			p.y -= frame.h / 2;
+			// center using world-visible size
+			p.x -= visW / 2;
+			p.y -= visH / 2;
 		}
 
-		// TODO: make the overflow more dynamic
-		if (frame.w >= mapsize.w + 64) {
-			p.x = (mapsize.w - frame.w) / 2;
+		// Half-viewport overscroll limits allow centering edges (in world units)
+		const int halfW = visW / 2;
+		const int halfH = visH / 2;
+		int minX = -halfW;
+		int maxX = mapsize.w - visW + halfW;
+		int minY = -halfH;
+		int maxY = mapsize.h - visH + halfH;
+
+		// Horizontal clamps with edge-centering room
+		if (p.x < minX) {
+			p.x = minX;
 			canMove = false;
-		} else if (p.x + frame.w >= mapsize.w + 64) {
-			p.x = mapsize.w - frame.w + 64;
-			canMove = false;
-		} else if (p.x < -64) {
-			p.x = -64;
+		} else if (p.x > maxX) {
+			p.x = maxX;
 			canMove = false;
 		}
 
-		constexpr int padding = 50;
-		if (frame.h >= mapsize.h + mwinh + padding) {
-			p.y = (mapsize.h - frame.h) / 2 + padding;
+		// Vertical clamps with edge-centering room
+		if (p.y < minY) {
+			p.y = minY;
 			canMove = false;
-		} else if (p.y + frame.h >= mapsize.h + mwinh + padding) {
-			p.y = mapsize.h - frame.h + mwinh + padding;
-			canMove = false;
-		} else if (p.y < 0) {
-			p.y = 0;
+		} else if (p.y > maxY) {
+			p.y = maxY;
 			canMove = false;
 		}
 
@@ -1809,8 +1820,8 @@ Region GameControl::Viewport() const
 		scale = 100.0f / (float) zl;
 	}
 	// world visible size = screen size divided by scale
-	int vw = (int) std::ceil((double) frame.w / (double) scale);
-	int vh = (int) std::ceil((double) frame.h / (double) scale);
+	int vw = (int) std::lround((double) frame.w / (double) scale);
+	int vh = (int) std::lround((double) frame.h / (double) scale);
 	return Region(vpOrigin, Size(vw, vh));
 }
 
@@ -2466,13 +2477,12 @@ void GameControl::CommandSelectedMovement(const Point& p, bool formation, bool a
 }
 bool GameControl::OnMouseWheelScroll(const Point& delta)
 {
-	// Use mouse wheel to control global zoom level instead of scrolling the viewport.
-	// Game::zoomLevel semantics (EE-style):
-	//  - 100: default zoom; >100 zoomed out; <100 zoomed in.
-	// We'll clamp to sane limits [50, 200] and step by 10 per wheel tick.
-
 	Game* game = core->GetGame();
 	if (!game) return false;
+
+	// Cache current viewport center in world coordinates
+	const Region oldVp = Viewport();
+	const Point worldCenter(oldVp.x + oldVp.w / 2, oldVp.y + oldVp.h / 2);
 
 	int oldZoom = game->zoomLevel ? (int) game->zoomLevel : 100;
 	int step = 0;
@@ -2487,6 +2497,30 @@ bool GameControl::OnMouseWheelScroll(const Point& delta)
 	if (newZoom != oldZoom) {
 		game->zoomLevel = (ieDword) newZoom;
 		Log(MESSAGE, "GameControl", "MouseWheel dy={} zoomLevel: {} -> {}", delta.y, oldZoom, newZoom);
+
+		// Compute new world-visible size at target zoom
+		float newScale = 100.0f / (float) newZoom; // matches Viewport() scale convention
+		int newVw = (int) std::lround((double) frame.w / (double) newScale);
+		int newVh = (int) std::lround((double) frame.h / (double) newScale);
+		// Desired top-left so that worldCenter remains in the middle
+		Point desiredTopLeft(worldCenter.x - newVw / 2, worldCenter.y - newVh / 2);
+		// Clamp the desired viewport center to the map extents and then derive top-left
+		const Map* area = CurrentArea();
+		if (area) {
+			Size mapsize = area->GetSize();
+			Point center = worldCenter;
+			if (center.x < 0) center.x = 0;
+			if (center.x > mapsize.w) center.x = mapsize.w;
+			if (center.y < 0) center.y = 0;
+			if (center.y > mapsize.h) center.y = mapsize.h;
+			desiredTopLeft.x = center.x - newVw / 2;
+			desiredTopLeft.y = center.y - newVh / 2;
+		}
+		// Move without additional centering math (we already computed top-left)
+		MoveViewportUnlockedTo(desiredTopLeft, false);
+		// Cancel any in-progress viewport scrolling to avoid a post-zoom snap
+		vpVector.reset();
+		core->timer.SetMoveViewPort(vpOrigin, 0, false);
 	} else {
 		Log(MESSAGE, "GameControl", "MouseWheel dy={} zoomLevel unchanged at {} (clamped)", delta.y, oldZoom);
 	}
