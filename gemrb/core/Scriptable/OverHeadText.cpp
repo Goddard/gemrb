@@ -128,7 +128,16 @@ void OverHeadText::Draw()
 	for (auto msgIter = messages.begin(); msgIter != messages.end(); ++msgIter) {
 		auto& msg = *msgIter;
 		if (msg.timeStartDisplaying == 0) continue;
-		if (msg.Draw(height, owner->Pos, owner->Type)) {
+		// Compute anchor: for actors use top-center of BBox, else owner->Pos
+		Point anchor = owner->Pos;
+		if (owner->Type == ST_ACTOR) {
+			const Region& bb = static_cast<const Scriptable*>(owner)->BBox;
+			if (!bb.size.IsInvalid()) {
+				anchor.x = bb.x + bb.w / 2;
+				anchor.y = bb.y;
+			}
+		}
+		if (msg.Draw(height, anchor, owner->Type)) {
 			show = true;
 		} else if (msgIter != messages.begin()) { // always keep the one reserved slot
 			msgIter = messages.erase(msgIter);
@@ -184,14 +193,29 @@ bool OverHeadMsg::Draw(int heightOffset, const Point& fallbackPos, int ownerType
 
 	Point p = pos.IsInvalid() ? fallbackPos : pos;
 	Region vp = core->GetGameControl()->Viewport();
-	// NOTE: in case we just printed a message, should we reduce the offset, so we can draw immediately without interference?
-	Region rgn(p - Point(100, heightOffset) - vp.origin, Size(200, 400));
+	// Build world-space bounds centered at actor pos, then floor-scale to screen space
+	int wl = (p.x - vp.x) - 100;
+	int wt = (p.y - vp.y) - heightOffset;
+	int wr = wl + 200;
+	int wb = wt + 400;
 	if (delay != maxDelay) {
-		rgn.y -= maxScrollOffset - scrollOffset.y;
-		// rgn.h will be adjusted automatically, we don't need to worry about accidentally hiding other msgs
+		wt -= maxScrollOffset - scrollOffset.y;
+		wb -= maxScrollOffset - scrollOffset.y;
 		scrollOffset.y -= 2;
 	}
-
+	Region rgn;
+	const float gs = VideoDriver->GetGameScale();
+	if (gs != 1.0f) {
+		const double s = (double) gs;
+		const int dl = (int) std::floor((double) wl * s);
+		const int dt = (int) std::floor((double) wt * s);
+		const int dr = (int) std::floor((double) wr * s);
+		const int db = (int) std::floor((double) wb * s);
+		rgn = Region(dl, dt, dr - dl, db - dt);
+		VideoDriver->SetGameScale(1.0f);
+	} else {
+		rgn = Region(wl, wt, wr - wl, wb - wt);
+	}
 	if (core->HasFeature(GFFlags::RULES_3ED)) {
 		// first draw a background layer for better contrast
 		Region rgnBG(rgn);
@@ -208,6 +232,9 @@ bool OverHeadMsg::Draw(int heightOffset, const Point& fallbackPos, int ownerType
 		VideoDriver->DrawRect(rgnBG, TranslucentBlack, true, BlitFlags::BLENDED);
 	}
 	core->GetTextFont()->Print(rgn, text, IE_FONT_ALIGN_CENTER | IE_FONT_ALIGN_TOP, fontColor);
+	if (gs != 1.0f) {
+		VideoDriver->SetGameScale(gs);
+	}
 
 	return true;
 }
