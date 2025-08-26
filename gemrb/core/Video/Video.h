@@ -90,6 +90,8 @@ protected:
 	Size screenSize;
 	int bpp = 0;
 	bool fullscreen = false;
+	// Scale factor applied to world/game rendering (BlitGameSprite). 1.0 = 100%.
+	float gameScale = 1.0f;
 
 	unsigned char Gamma10toGamma22[256];
 	unsigned char Gamma22toGamma10[256];
@@ -171,11 +173,35 @@ public:
 	virtual void BlitGameSprite(const Holder<Sprite2D>& spr, const Point& p,
 				    BlitFlags flags, Color tint = Color()) = 0;
 
+	// Center-preserving blit for actor circles/actors under zoom
+	inline void BlitGameSpriteCentered(const Holder<Sprite2D>& spr, const Point& worldCenter,
+					   BlitFlags flags, Color tint = Color())
+	{
+		// Convert to top-left using sprite origin so anchor is respected
+		Point tl = worldCenter - spr->Frame.origin;
+		if (gameScale != 1.0f) {
+			const double s = (double) gameScale;
+			const int dx = (int) std::lround((double) tl.x * s);
+			const int dy = (int) std::lround((double) tl.y * s);
+			Region src(Point(0, 0), spr->Frame.size);
+			Region dst(dx, dy,
+				   (int) std::lround((double) spr->Frame.w * s),
+				   (int) std::lround((double) spr->Frame.h * s));
+			BlitSprite(spr, src, dst, flags, tint);
+			return;
+		}
+		BlitSprite(spr, tl, nullptr, flags | BlitFlags::BLENDED);
+	}
+
 	void BlitGameSpriteWithPalette(const Holder<Sprite2D>& spr, const Holder<Palette>& pal, const Point& p,
 				       BlitFlags flags, Color tint);
 
 	virtual void BlitVideoBuffer(const VideoBufferPtr& buf, const Point& p, BlitFlags flags,
 				     Color tint = Color()) = 0;
+
+	// Game/world scale control (used to implement zoom). UI should use BlitSprite and is unaffected.
+	inline void SetGameScale(float s) { gameScale = s; }
+	inline float GetGameScale() const { return gameScale; }
 
 	/** Return GemRB window screenshot.
 	 * It's generated from the momentary back buffer */

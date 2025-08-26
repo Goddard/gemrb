@@ -20,8 +20,6 @@
 
 #include "Video.h"
 
-#include "Palette.h"
-#include "Polygon.h"
 #include "Sprite2D.h"
 
 #include <cmath>
@@ -306,52 +304,117 @@ static Color ApplyFlagsForColor(const Color& inCol, BlitFlags& flags)
 	return outC;
 }
 
+// Geometry scaling helpers for applying gameScale to primitives
+static inline BasePoint ScaleBasePoint(const BasePoint& p, float s)
+{
+	if (s == 1.0f) return p;
+	return BasePoint(
+		(int) std::floor((double) p.x * (double) s),
+		(int) std::floor((double) p.y * (double) s));
+}
+
+static inline Point ScalePoint(const Point& p, float s)
+{
+	if (s == 1.0f) return p;
+	return Point(
+		(int) std::floor((double) p.x * (double) s),
+		(int) std::floor((double) p.y * (double) s));
+}
+
+static inline Region ScaleRegion(const Region& r, float s)
+{
+	if (s == 1.0f) return r;
+	// Edge-aligned scaling for rectangles to avoid cracks/gaps when adjacent
+	const double sd = (double) s;
+	const int left = (int) std::floor(((double) r.x) * sd);
+	const int top = (int) std::floor(((double) r.y) * sd);
+	const int right = (int) std::floor(((double) (r.x + r.w)) * sd);
+	const int bottom = (int) std::floor(((double) (r.y + r.h)) * sd);
+	return Region(left, top, right - left, bottom - top);
+}
+
+static inline uint16_t ScaleRadius(uint16_t r, float s)
+{
+	if (s == 1.0f) return r;
+	return (uint16_t) std::max(0, (int) std::lround((double) r * (double) s));
+}
+
 void Video::DrawRect(const Region& rgn, const Color& color, bool fill, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawRectImp(rgn, c, fill, flags);
+	const float s = gameScale;
+	const Region sr = ScaleRegion(rgn, s);
+	DrawRectImp(sr, c, fill, flags);
 }
 
 void Video::DrawPoint(const BasePoint& p, const Color& color, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawPointImp(p, c, flags);
+	const float s = gameScale;
+	const BasePoint sp = ScaleBasePoint(p, s);
+	DrawPointImp(sp, c, flags);
 }
 
 void Video::DrawPoints(const std::vector<BasePoint>& points, const Color& color, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawPointsImp(points, c, flags);
+	const float s = gameScale;
+	if (s == 1.0f) {
+		DrawPointsImp(points, c, flags);
+		return;
+	}
+	std::vector<BasePoint> scaled;
+	scaled.reserve(points.size());
+	for (const auto& p : points) scaled.push_back(ScaleBasePoint(p, s));
+	DrawPointsImp(scaled, c, flags);
 }
 
 void Video::DrawCircle(const Point& origin, uint16_t r, const Color& color, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawCircleImp(origin, r, c, flags);
+	const float s = gameScale;
+	const Point so = ScalePoint(origin, s);
+	const uint16_t sr = ScaleRadius(r, s);
+	DrawCircleImp(so, sr, c, flags);
 }
 
 void Video::DrawEllipse(const Region& rect, const Color& color, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawEllipseImp(rect, c, flags);
+	const float s = gameScale;
+	const Region sr = ScaleRegion(rect, s);
+	DrawEllipseImp(sr, c, flags);
 }
 
 void Video::DrawPolygon(const Gem_Polygon* poly, const Point& origin, const Color& color, bool fill, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawPolygonImp(poly, origin, c, fill, flags);
+	const float s = gameScale;
+	const Point so = ScalePoint(origin, s);
+	DrawPolygonImp(poly, so, c, fill, flags);
 }
 
 void Video::DrawLine(const BasePoint& p1, const BasePoint& p2, const Color& color, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawLineImp(p1, p2, c, flags);
+	const float s = gameScale;
+	const BasePoint sp1 = ScaleBasePoint(p1, s);
+	const BasePoint sp2 = ScaleBasePoint(p2, s);
+	DrawLineImp(sp1, sp2, c, flags);
 }
 
 void Video::DrawLines(const std::vector<Point>& points, const Color& color, BlitFlags flags)
 {
 	Color c = ApplyFlagsForColor(color, flags);
-	DrawLinesImp(points, c, flags);
+	const float s = gameScale;
+	if (s == 1.0f) {
+		DrawLinesImp(points, c, flags);
+		return;
+	}
+	std::vector<Point> scaled;
+	scaled.reserve(points.size());
+	for (const auto& p : points) scaled.push_back(ScalePoint(p, s));
+	DrawLinesImp(scaled, c, flags);
 }
 
 }

@@ -417,29 +417,48 @@ bool FogRenderer::IsUncovered(FogPoint p, const Bitmap* mask)
 
 void FogRenderer::SetFogVerticesByOrigin(Point p)
 {
+	// Scale fog cell to screen space with floor-aligned edges to match tiles under zoom
+	const float gs = VideoDriver->GetGameScale();
+	int lx, ty, rx, by;
+	if (gs != 1.0f) {
+		const double s = (double) gs;
+		lx = (int) std::floor((double) p.x * s);
+		ty = (int) std::floor((double) p.y * s);
+		rx = (int) std::floor((double) (p.x + CELL_SIZE) * s);
+		by = (int) std::floor((double) (p.y + CELL_SIZE) * s);
+	} else {
+		lx = p.x;
+		ty = p.y;
+		rx = p.x + CELL_SIZE;
+		by = p.y + CELL_SIZE;
+	}
+
+	const float cx = 0.5f * ((float) lx + (float) rx);
+	const float cy = 0.5f * ((float) ty + (float) by);
+
 	// Triangle fan of 4: center
-	fogVertices[0] = fogVertices[6] = fogVertices[12] = fogVertices[18] = p.x + CELL_SIZE / 2;
-	fogVertices[1] = fogVertices[7] = fogVertices[13] = fogVertices[19] = p.y + CELL_SIZE / 2;
+	fogVertices[0] = fogVertices[6] = fogVertices[12] = fogVertices[18] = cx;
+	fogVertices[1] = fogVertices[7] = fogVertices[13] = fogVertices[19] = cy;
 	// Top (l, r)
-	fogVertices[2] = p.x;
-	fogVertices[3] = p.y;
-	fogVertices[4] = p.x + CELL_SIZE;
-	fogVertices[5] = p.y;
+	fogVertices[2] = (float) lx;
+	fogVertices[3] = (float) ty;
+	fogVertices[4] = (float) rx;
+	fogVertices[5] = (float) ty;
 	// Right (t, b)
-	fogVertices[8] = p.x + CELL_SIZE;
-	fogVertices[9] = p.y;
-	fogVertices[10] = p.x + CELL_SIZE;
-	fogVertices[11] = p.y + CELL_SIZE;
+	fogVertices[8] = (float) rx;
+	fogVertices[9] = (float) ty;
+	fogVertices[10] = (float) rx;
+	fogVertices[11] = (float) by;
 	// Bottom (r, l)
-	fogVertices[14] = p.x + CELL_SIZE;
-	fogVertices[15] = p.y + CELL_SIZE;
-	fogVertices[16] = p.x;
-	fogVertices[17] = p.y + CELL_SIZE;
+	fogVertices[14] = (float) rx;
+	fogVertices[15] = (float) by;
+	fogVertices[16] = (float) lx;
+	fogVertices[17] = (float) by;
 	// left (b, t)
-	fogVertices[20] = p.x;
-	fogVertices[21] = p.y + CELL_SIZE;
-	fogVertices[22] = p.x;
-	fogVertices[23] = p.y;
+	fogVertices[20] = (float) lx;
+	fogVertices[21] = (float) by;
+	fogVertices[22] = (float) lx;
+	fogVertices[23] = (float) ty;
 }
 
 }

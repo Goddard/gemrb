@@ -3564,6 +3564,11 @@ void Map::UpdateFog()
 		if (state & STATE_CANTSEE) continue;
 
 		int vis2 = actor->GetVisualRange();
+		// Assets are pre-upscaled; expand visual range accordingly
+		{
+			const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+			if (ups > 1) vis2 *= ups;
+		}
 		if ((state & STATE_BLIND) || (vis2 < 2)) vis2 = 2; //can see only themselves
 		ExploreMapChunk(actor->SMPos, vis2 + actor->GetAnims()->GetCircleSize(), 1);
 

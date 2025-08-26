@@ -67,14 +67,29 @@ void Selectable::DrawCircle(const Point& p) const
 	}
 
 	if (sprite) {
-		VideoDriver->BlitSprite(sprite, Pos - p);
+		// Use game-world blit (tile-aligned) so circle matches actor/tiles at zoom
+		VideoDriver->BlitGameSprite(sprite, Pos - p, BlitFlags::BLENDED);
 	} else {
-		// Scale ellipse by configuration factor to match pre-scaled assets when no sprite is present
+		// Draw ellipse fallback, but bypass BasePoint scaling to avoid drift at zoom
 		const int ups = core->config.UpScaleFactor;
 		auto baseSize = (int) (CircleSize2Radius() * sizeFactor * ups);
-		const Size s(baseSize * 8, baseSize * 6);
-		const Region r(Pos - p - s.Center(), s);
-		VideoDriver->DrawEllipse(r, *col);
+		const Size unscaledSize(baseSize * 8, baseSize * 6);
+		Region rUnscaled(Pos - p - unscaledSize.Center(), unscaledSize);
+
+		float gs = VideoDriver->GetGameScale();
+		if (gs != 1.0f) {
+			const double s = (double) gs;
+			const int left = (int) std::floor(((double) rUnscaled.x) * s);
+			const int top = (int) std::floor(((double) rUnscaled.y) * s);
+			const int right = (int) std::floor(((double) (rUnscaled.x + rUnscaled.w)) * s);
+			const int bottom = (int) std::floor(((double) (rUnscaled.y + rUnscaled.h)) * s);
+			Region rScaled(left, top, right - left, bottom - top);
+			VideoDriver->SetGameScale(1.0f);
+			VideoDriver->DrawEllipse(rScaled, *col);
+			VideoDriver->SetGameScale(gs);
+		} else {
+			VideoDriver->DrawEllipse(rUnscaled, *col);
+		}
 	}
 }
 

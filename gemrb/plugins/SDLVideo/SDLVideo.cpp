@@ -21,9 +21,13 @@
 #include "SDLVideo.h"
 
 #include "Interface.h"
-#include "SDLSurfaceDrawing.h"
+
+#include "Logging/Logging.h"
+// #include "SDLSurfaceDrawing.h" // not used directly
 
 #include "Video/RLE.h"
+
+#include <cmath>
 
 using namespace GemRB;
 
@@ -305,7 +309,19 @@ void SDLVideoDriver::BlitGameSprite(const Holder<Sprite2D>& spr, const Point& p,
 				    BlitFlags flags, Color tint)
 {
 	Region srect(Point(0, 0), spr->Frame.size);
-	Region drect = Region(p - spr->Frame.origin, spr->Frame.size);
+	Point topLeft = p - spr->Frame.origin;
+	Region drect;
+	if (gameScale != 1.0f) {
+		// Edge-aligned scaling to prevent seams between adjacent tiles/sprites
+		const double s = (double) gameScale;
+		const int left = (int) std::floor(((double) topLeft.x) * s);
+		const int top = (int) std::floor(((double) topLeft.y) * s);
+		const int right = (int) std::floor(((double) (topLeft.x + spr->Frame.w)) * s);
+		const int bottom = (int) std::floor(((double) (topLeft.y + spr->Frame.h)) * s);
+		drect = Region(left, top, right - left, bottom - top);
+	} else {
+		drect = Region(topLeft, spr->Frame.size);
+	}
 	BlitSpriteClipped(spr, std::move(srect), drect, flags, &tint);
 }
 
@@ -365,9 +381,13 @@ void SDLVideoDriver::BlitSpriteClipped(const Holder<Sprite2D>& spr, Region src, 
 		return;
 	}
 
+#if !SDL_VERSION_ATLEAST(1, 3, 0)
+	// Under SDL1 we require src and dst clip sizes to match to avoid overruns
 	assert(dclipped.w == src.w && dclipped.h == src.h);
+#endif
 
 #if SDL_VERSION_ATLEAST(1, 3, 0)
+	// In SDL2, allow scaling: use original source rect and the intended destination rect
 	dclipped = dst;
 	src = originalSrc;
 #endif

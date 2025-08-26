@@ -50,6 +50,7 @@
 #include "fmt/ranges.h"
 
 #include <array>
+#include <cmath>
 
 namespace GemRB {
 
@@ -259,7 +260,8 @@ void GameControl::DrawFormation(const std::vector<Actor*>& actors, const Point& 
 {
 	std::vector<Point> formationPoints = GetFormationPoints(formationPoint, actors, angle);
 	for (size_t i = 0; i < actors.size(); ++i) {
-		DrawTargetReticle(actors[i], formationPoints[i] - vpOrigin);
+		Point p = formationPoints[i] - vpOrigin;
+		DrawTargetReticle(actors[i], p);
 	}
 }
 
@@ -413,12 +415,10 @@ void GameControl::DrawTargetReticle(uint16_t size, const Color& color, const Poi
 
 void GameControl::DrawTargetReticle(const Movable* target, const Point& p, int offset) const
 {
-	int size = target->CircleSize2Radius();
-	// Scale by UpScaleFactor so the destination/click reticle matches pre-scaled assets/world
+	// Match Selectable::DrawCircle(): include sizeFactor and UpScaleFactor
+	int size = (int) (target->CircleSize2Radius() * target->sizeFactor);
 	const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
-	if (ups > 1) {
-		size *= ups;
-	}
+	size *= ups;
 	const Color& green = target->selectedColor;
 	const Color& color = (target->Over) ? GlobalColorCycle.Blend(target->overColor, green) : green;
 
@@ -595,6 +595,17 @@ void GameControl::DrawSelf(const Region& screen, const Region& /*clip*/)
 	Map* area = game->GetCurrentArea();
 	if (!area) return;
 
+	// Apply game/world zoom while drawing the map (UI remains unscaled)
+	float gameScale = 1.0f;
+	if (game) {
+		int zl = game->zoomLevel ? (int) game->zoomLevel : 100; // 100 := 1.0x
+		gameScale = 100.0f / (float) zl; // >100 => scale < 1 => zoom out
+	}
+	float oldScale = VideoDriver->GetGameScale();
+	if (oldScale != gameScale) {
+		VideoDriver->SetGameScale(gameScale);
+	}
+
 	OutlineInfoPoints();
 	OutlineDoors();
 	OutlineContainers();
@@ -635,6 +646,11 @@ void GameControl::DrawSelf(const Region& screen, const Region& /*clip*/)
 			}
 		}
 	}
+
+	// Reset world scale to avoid affecting any non-world rendering paths
+	if (VideoDriver->GetGameScale() != oldScale) {
+		VideoDriver->SetGameScale(oldScale);
+	}
 }
 
 void GameControl::DrawTargetReticles() const
@@ -646,6 +662,7 @@ void GameControl::DrawTargetReticles() const
 		DrawFormation(game->selected, gameClickPoint, angle);
 		return;
 	}
+
 
 	for (const auto& selectee : game->selected) {
 		assert(selectee);
@@ -659,7 +676,10 @@ void GameControl::DrawTargetReticles() const
 			Point wp = step.point - vpOrigin;
 			DrawTargetReticle(selectee, wp);
 		}
-		DrawTargetReticle(selectee, selectee->Destination - vpOrigin); // always draw last step
+		{
+			Point dest = selectee->Destination - vpOrigin;
+			DrawTargetReticle(selectee, dest); // always draw last step
+		}
 	}
 }
 
@@ -1500,8 +1520,7 @@ void GameControl::DebugPaint(const Point& p, bool sample) const noexcept
 bool GameControl::OnMouseDrag(const MouseEvent& me)
 {
 	if (EventMgr::ModState(GEM_MOD_CTRL)) {
-		Point p = ConvertPointFromScreen(me.Pos());
-		DebugPaint(p + vpOrigin, false);
+		DebugPaint(GameMousePos(), false);
 		return true;
 	}
 
@@ -1585,8 +1604,19 @@ bool GameControl::OnTouchGesture(const GestureEvent& gesture)
 			if (core->GetGame()->selected.size() <= 1) {
 				isFormationRotation = false;
 			} else {
-				screenMousePos = gesture.fingers[1].Pos();
-				InitFormation(screenMousePos, true);
+				// Convert second finger position to world coords for rotation center
+				Point local = ConvertPointFromScreen(gesture.fingers[1].Pos());
+				float s = 1.0f;
+				if (const Game* g = core->GetGame()) {
+					int zl = g->zoomLevel ? (int) g->zoomLevel : 100;
+					s = 100.0f / (float) zl;
+				}
+				if (s != 1.0f && s > 0.0f) {
+					local.x = (int) std::lround((double) local.x / (double) s);
+					local.y = (int) std::lround((double) local.y / (double) s);
+				}
+				Point world = vpOrigin + local;
+				InitFormation(world, true);
 			}
 		} else { // scroll viewport
 			MoveViewportTo(vpOrigin - gesture.Delta(), false);
@@ -1629,7 +1659,20 @@ bool GameControl::OnTouchGesture(const GestureEvent& gesture)
 
 Point GameControl::GameMousePos() const
 {
-	return vpOrigin + ConvertPointFromScreen(screenMousePos);
+	// Convert raw screen mouse position to this view's local coordinates
+	Point local = ConvertPointFromScreen(screenMousePos);
+	// Apply inverse of current game/world scale (derived from Game::zoomLevel)
+	// to map to world pixels regardless of when this is called.
+	float s = 1.0f;
+	if (const Game* g = core->GetGame()) {
+		int zl = g->zoomLevel ? (int) g->zoomLevel : 100; // 100 := 1.0x
+		s = 100.0f / (float) zl;
+	}
+	if (s != 1.0f && s > 0.0f) {
+		local.x = (int) std::lround((double) local.x / (double) s);
+		local.y = (int) std::lround((double) local.y / (double) s);
+	}
+	return vpOrigin + local;
 }
 
 bool GameControl::OnGlobalMouseMove(const Event& e)
@@ -1758,7 +1801,17 @@ bool GameControl::MoveViewportTo(Point p, bool center, int speed)
 
 Region GameControl::Viewport() const
 {
-	return Region(vpOrigin, frame.size);
+	// Return the world-space viewport size so Map::DrawMap submits the correct area
+	const Game* game = core->GetGame();
+	float scale = 1.0f;
+	if (game) {
+		int zl = game->zoomLevel ? (int) game->zoomLevel : 100;
+		scale = 100.0f / (float) zl;
+	}
+	// world visible size = screen size divided by scale
+	int vw = (int) std::ceil((double) frame.w / (double) scale);
+	int vh = (int) std::ceil((double) frame.h / (double) scale);
+	return Region(vpOrigin, Size(vw, vh));
 }
 
 //generate action code for source actor to try to attack a target
@@ -2131,13 +2184,14 @@ bool GameControl::OnMouseDown(const MouseEvent& me, unsigned short Mod)
 		return true;
 	}
 
-	Point p = ConvertPointFromScreen(me.Pos());
-	gameClickPoint = p + vpOrigin;
+	gameClickPoint = GameMousePos();
 
 	switch (me.button) {
 		case GEM_MB_MENU: //right click.
 			if (core->HasFeature(GFFlags::HAS_FLOAT_MENU) && !Mod) {
-				core->GetGUIScriptEngine()->RunFunction("GUICommon", "OpenFloatMenuWindow", p, false);
+				// Use local coords for float menu positioning
+				Point local = ConvertPointFromScreen(me.Pos());
+				core->GetGUIScriptEngine()->RunFunction("GUICommon", "OpenFloatMenuWindow", local, false);
 			} else {
 				TryDefaultTalk();
 			}
@@ -2205,7 +2259,7 @@ bool GameControl::OnMouseUp(const MouseEvent& me, unsigned short Mod)
 	//heh, i found no better place
 	core->CloseCurrentContainer();
 
-	Point p = ConvertPointFromScreen(me.Pos()) + vpOrigin;
+	Point p = GameMousePos();
 	bool isDoubleClick = me.repeats == 2;
 	bool tryToRun = isDoubleClick;
 	if (core->HasFeature(GFFlags::HAS_FLOAT_MENU)) {
@@ -2412,11 +2466,30 @@ void GameControl::CommandSelectedMovement(const Point& p, bool formation, bool a
 }
 bool GameControl::OnMouseWheelScroll(const Point& delta)
 {
-	// Game coordinates start at the top left to the bottom right
-	// so we need to invert the 'y' axis
-	Point d = delta;
-	d.y *= -1;
-	Scroll(d);
+	// Use mouse wheel to control global zoom level instead of scrolling the viewport.
+	// Game::zoomLevel semantics (EE-style):
+	//  - 100: default zoom; >100 zoomed out; <100 zoomed in.
+	// We'll clamp to sane limits [50, 200] and step by 10 per wheel tick.
+
+	Game* game = core->GetGame();
+	if (!game) return false;
+
+	int oldZoom = game->zoomLevel ? (int) game->zoomLevel : 100;
+	int step = 0;
+	// Typical convention: wheel up (delta.y > 0) means zoom in => smaller value
+	if (delta.y > 0)
+		step = -10; // zoom in
+	else if (delta.y < 0)
+		step = 10; // zoom out
+	// horizontal wheel (delta.x) is ignored for now
+
+	int newZoom = Clamp(oldZoom + step, 50, 200);
+	if (newZoom != oldZoom) {
+		game->zoomLevel = (ieDword) newZoom;
+		Log(MESSAGE, "GameControl", "MouseWheel dy={} zoomLevel: {} -> {}", delta.y, oldZoom, newZoom);
+	} else {
+		Log(MESSAGE, "GameControl", "MouseWheel dy={} zoomLevel unchanged at {} (clamped)", delta.y, oldZoom);
+	}
 	return true;
 }
 
