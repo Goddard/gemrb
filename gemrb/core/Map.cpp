@@ -250,9 +250,10 @@ private:
 struct Explore {
 	int LargeFog;
 	// NOTE: iwds supported also much higher values than 30, but there is no known need for that #1460
-	static constexpr int MaxVisibility = 30;
-	int VisibilityPerimeter = 0; // calculated from MaxVisibility
-	std::array<std::vector<SearchmapPoint>, MaxVisibility> VisibilityMasks;
+	static constexpr int BaseMaxVisibility = 30;
+	int EffectiveMaxVisibility = BaseMaxVisibility;
+	int VisibilityPerimeter = 0; // calculated from EffectiveMaxVisibility
+	std::vector<std::vector<SearchmapPoint>> VisibilityMasks;
 
 	static const Explore& Get()
 	{
@@ -263,9 +264,9 @@ struct Explore {
 private:
 	void AddLOS(int destx, int desty, int slot)
 	{
-		for (int i = 0; i < MaxVisibility; i++) {
-			int x = (destx * i + MaxVisibility / 2) / MaxVisibility;
-			int y = (desty * i + MaxVisibility / 2) / MaxVisibility;
+		for (int i = 0; i < EffectiveMaxVisibility; i++) {
+			int x = (destx * i + EffectiveMaxVisibility / 2) / EffectiveMaxVisibility;
+			int y = (desty * i + EffectiveMaxVisibility / 2) / EffectiveMaxVisibility;
 			if (LargeFog) {
 				x++;
 				y++;
@@ -279,10 +280,18 @@ private:
 	{
 		LargeFog = !core->HasFeature(GFFlags::SMALL_FOG);
 
-		//circle perimeter size for MaxVisibility
-		int x = MaxVisibility;
+		// compute effective visibility radius based on UpScaleFactor
+		{
+			const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+			EffectiveMaxVisibility = BaseMaxVisibility * (ups > 0 ? ups : 1);
+			VisibilityMasks.clear();
+			VisibilityMasks.resize(EffectiveMaxVisibility);
+		}
+
+		//circle perimeter size for EffectiveMaxVisibility
+		int x = EffectiveMaxVisibility;
 		int y = 0;
-		int xc = 1 - (2 * MaxVisibility);
+		int xc = 1 - (2 * EffectiveMaxVisibility);
 		int yc = 1;
 		int re = 0;
 		while (x >= y) {
@@ -297,13 +306,13 @@ private:
 			}
 		}
 
-		for (int i = 0; i < MaxVisibility; i++) {
+		for (int i = 0; i < EffectiveMaxVisibility; i++) {
 			VisibilityMasks[i].resize(VisibilityPerimeter);
 		}
 
-		x = MaxVisibility;
+		x = EffectiveMaxVisibility;
 		y = 0;
-		xc = 1 - (2 * MaxVisibility);
+		xc = 1 - (2 * EffectiveMaxVisibility);
 		yc = 1;
 		re = 0;
 		VisibilityPerimeter = 0;
@@ -3507,8 +3516,8 @@ void Map::ExploreMapChunk(const SearchmapPoint& pos, int range, int los)
 	FogPoint fogTile;
 	const Explore& explore = Explore::Get();
 
-	if (range > Explore::MaxVisibility) {
-		range = Explore::MaxVisibility;
+	if (range > explore.EffectiveMaxVisibility) {
+		range = explore.EffectiveMaxVisibility;
 	}
 	int p = explore.VisibilityPerimeter;
 	while (p--) {
