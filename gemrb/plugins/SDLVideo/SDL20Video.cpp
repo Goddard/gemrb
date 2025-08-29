@@ -715,8 +715,22 @@ void SDL20VideoDriver::DrawPolygonImp(const Gem_Polygon* poly, const Point& orig
 				// SDL_RenderDrawLines actually is for drawing polygons so it is, ironically, not what we want
 				// when drawing the "rasterized" data. doing so would work ok most of the time, but other times
 				// the reconnection of the last to first point (done by SDL) will be visible
-				Point p1(segment.first + origin);
-				Point p2(segment.second + origin);
+
+				// Scale polygon vertices by gameScale for proper zoom rendering
+				// Note: origin is already scaled by Video::DrawPolygon, so we only scale the polygon vertices
+				Point p1, p2;
+				if (gameScale != 1.0f) {
+					const double s = (double) gameScale;
+					p1.x = (int) std::floor((double) segment.first.x * s);
+					p1.y = (int) std::floor((double) segment.first.y * s);
+					p2.x = (int) std::floor((double) segment.second.x * s);
+					p2.y = (int) std::floor((double) segment.second.y * s);
+					p1 += origin;
+					p2 += origin;
+				} else {
+					p1 = segment.first + origin;
+					p2 = segment.second + origin;
+				}
 				SDL_RenderDrawLine(renderer, p1.x, p1.y, p2.x, p2.y);
 			}
 		}
@@ -724,7 +738,18 @@ void SDL20VideoDriver::DrawPolygonImp(const Gem_Polygon* poly, const Point& orig
 		std::vector<SDL_Point> points(poly->Count() + 1);
 		size_t i = 0;
 		for (; i < poly->Count(); ++i) {
-			const Point& p = poly->vertices[i] - poly->BBox.origin + origin;
+			// Scale polygon vertices by gameScale for proper zoom rendering
+			// Note: origin is already scaled by Video::DrawPolygon, so we only scale the polygon vertices
+			Point p;
+			if (gameScale != 1.0f) {
+				const double s = (double) gameScale;
+				Point vertex = poly->vertices[i] - poly->BBox.origin;
+				p.x = (int) std::floor((double) vertex.x * s);
+				p.y = (int) std::floor((double) vertex.y * s);
+				p += origin;
+			} else {
+				p = poly->vertices[i] - poly->BBox.origin + origin;
+			}
 			points[i].x = p.x;
 			points[i].y = p.y;
 		}

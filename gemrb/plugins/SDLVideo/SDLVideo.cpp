@@ -312,12 +312,12 @@ void SDLVideoDriver::BlitGameSprite(const Holder<Sprite2D>& spr, const Point& p,
 	Point topLeft = p - spr->Frame.origin;
 	Region drect;
 	if (gameScale != 1.0f) {
-		// Edge-aligned scaling to prevent seams between adjacent tiles/sprites
+		// Edge-aligned scaling: floor left/top, ceil right/bottom
 		const double s = (double) gameScale;
 		const int left = (int) std::floor(((double) topLeft.x) * s);
 		const int top = (int) std::floor(((double) topLeft.y) * s);
-		const int right = (int) std::floor(((double) (topLeft.x + spr->Frame.w)) * s);
-		const int bottom = (int) std::floor(((double) (topLeft.y + spr->Frame.h)) * s);
+		const int right = (int) std::ceil(((double) (topLeft.x + spr->Frame.w)) * s);
+		const int bottom = (int) std::ceil(((double) (topLeft.y + spr->Frame.h)) * s);
 		drect = Region(left, top, right - left, bottom - top);
 	} else {
 		drect = Region(topLeft, spr->Frame.size);
@@ -362,20 +362,30 @@ void SDLVideoDriver::BlitSpriteClipped(const Holder<Sprite2D>& spr, Region src, 
 #endif
 	// FIXME?: srect isn't verified
 	Region dclipped = ClippedDrawingRect(dst);
+	// Proportional source trim to avoid stretching
+	auto safeDiv = [](int a, int b) -> double { return (b != 0) ? ((double) a / (double) b) : 0.0; };
+	double scaleX = safeDiv(dst.w, src.w);
+	double scaleY = safeDiv(dst.h, src.h);
 	int trim = dst.h - dclipped.h;
 	if (trim) {
-		src.h -= trim;
+		int srcTrimH = (scaleY > 0.0) ? (int) std::floor((double) trim / scaleY) : trim;
+		if (srcTrimH < 0) srcTrimH = 0;
+		if (srcTrimH > src.h) srcTrimH = src.h;
+		src.h -= srcTrimH;
 		if (dclipped.y > dst.y) { // top clipped
-			src.y += trim;
-		} // already have appropriate y for bottom clip
+			src.y += srcTrimH;
+		}
 	}
 	trim = dst.w - dclipped.w;
 	if (trim) {
-		src.w -= trim;
+		int srcTrimW = (scaleX > 0.0) ? (int) std::floor((double) trim / scaleX) : trim;
+		if (srcTrimW < 0) srcTrimW = 0;
+		if (srcTrimW > src.w) srcTrimW = src.w;
+		src.w -= srcTrimW;
 		if (dclipped.x > dst.x) { // left clipped
-			src.x += trim;
+			src.x += srcTrimW;
 		}
-	} // already have appropriate y for right clip
+	} // already have appropriate x/y for right/bottom clips
 
 	if (dclipped.size.IsInvalid() || src.size.IsInvalid()) {
 		return;

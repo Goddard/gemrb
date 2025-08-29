@@ -1767,8 +1767,8 @@ bool GameControl::MoveViewportTo(Point p, bool center, int speed)
 			int zl = game->zoomLevel ? (int) game->zoomLevel : 100;
 			scale = 100.0f / (float) zl;
 		}
-		const int visW = (int) std::lround((double) frame.w / (double) scale);
-		const int visH = (int) std::lround((double) frame.h / (double) scale);
+		const int visW = (int) std::ceil((double) frame.w / (double) scale);
+		const int visH = (int) std::ceil((double) frame.h / (double) scale);
 		if (center) {
 			// center using world-visible size
 			p.x -= visW / 2;
@@ -1820,8 +1820,8 @@ Region GameControl::Viewport() const
 		scale = 100.0f / (float) zl;
 	}
 	// world visible size = screen size divided by scale
-	int vw = (int) std::lround((double) frame.w / (double) scale);
-	int vh = (int) std::lround((double) frame.h / (double) scale);
+	int vw = (int) std::ceil((double) frame.w / (double) scale);
+	int vh = (int) std::ceil((double) frame.h / (double) scale);
 	return Region(vpOrigin, Size(vw, vh));
 }
 
@@ -2513,8 +2513,8 @@ bool GameControl::OnMouseWheelScroll(const Point& delta)
 
 		// Compute new world-visible size at target zoom
 		float newScale = 100.0f / (float) newZoom; // matches Viewport() scale convention
-		int newVw = (int) std::lround((double) frame.w / (double) newScale);
-		int newVh = (int) std::lround((double) frame.h / (double) newScale);
+		int newVw = (int) std::ceil((double) frame.w / (double) newScale);
+		int newVh = (int) std::ceil((double) frame.h / (double) newScale);
 		// Desired top-left so that worldCenter remains in the middle
 		Point desiredTopLeft(worldCenter.x - newVw / 2, worldCenter.y - newVh / 2);
 		// Clamp the desired viewport center to the map extents and then derive top-left

@@ -181,12 +181,13 @@ public:
 		Point tl = worldCenter - spr->Frame.origin;
 		if (gameScale != 1.0f) {
 			const double s = (double) gameScale;
-			const int dx = (int) std::lround((double) tl.x * s);
-			const int dy = (int) std::lround((double) tl.y * s);
+			// Edge-aligned scaling to keep centered sprites consistent at edges
+			const int left = (int) std::floor(((double) tl.x) * s);
+			const int top = (int) std::floor(((double) tl.y) * s);
+			const int right = (int) std::ceil(((double) (tl.x + spr->Frame.w)) * s);
+			const int bottom = (int) std::ceil(((double) (tl.y + spr->Frame.h)) * s);
 			Region src(Point(0, 0), spr->Frame.size);
-			Region dst(dx, dy,
-				   (int) std::lround((double) spr->Frame.w * s),
-				   (int) std::lround((double) spr->Frame.h * s));
+			Region dst(left, top, right - left, bottom - top);
 			BlitSprite(spr, src, dst, flags, tint);
 			return;
 		}
