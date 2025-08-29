@@ -1696,6 +1696,12 @@ bool GameControl::OnGlobalMouseMove(const Event& e)
 	screenMousePos = e.mouse.Pos();
 	Point mp = ConvertPointFromScreen(screenMousePos);
 	int mousescrollspd = core->GetMouseScrollSpeed();
+	{
+		const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+		if (ups > 1) {
+			mousescrollspd *= ups;
+		}
+	}
 
 	if (mp.x < mask.x) {
 		vpVector.x = -mousescrollspd;
