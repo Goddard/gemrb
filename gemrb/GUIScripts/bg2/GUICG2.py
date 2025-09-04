@@ -58,9 +58,11 @@ def OnLoad():
 		if GameCheck.IsBG2EE (): # make room for another button for shaman; ideally we'd add another scrollbar
 			if Button:
 				btnFrame = Button.GetFrame ()
-				Button.SetPos (btnFrame["x"], btnFrame["y"] - 10)
+				scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+				Button.SetPos (btnFrame["x"], btnFrame["y"] - int(10 * scale_factor))
 			else:
-				Button = ClassWindow.CreateButton (j + 7, 22, 416, 340, 32)
+				scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+				Button = ClassWindow.CreateButton (j + 7, int(22 * scale_factor), int(416 * scale_factor), int(340 * scale_factor), int(32 * scale_factor))
 				Button.SetSprites ("guichlng", 0, 0, 1, 2, 3)
 				Button.SetFlags (IE_GUI_BUTTON_PICTURE, OP_OR)
 				Button.SetFlags (IE_GUI_BUTTON_NO_IMAGE, OP_NAND)

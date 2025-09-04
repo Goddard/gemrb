@@ -83,14 +83,16 @@ def OnLoad():
 
 	tmpRowCount = RowCount
 	if RowCount > 10: # create 11th kit button
-		extrakit = KitWindow.CreateButton (15, 18, 250, 271, 20)
+		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+		extrakit = KitWindow.CreateButton (15, int(18 * scale_factor), int(250 * scale_factor), int(271 * scale_factor), int(20 * scale_factor))
 		extrakit.SetState (IE_GUI_BUTTON_DISABLED)
 		extrakit.SetFlags (IE_GUI_BUTTON_RADIOBUTTON | IE_GUI_BUTTON_CAPS, OP_OR)
 		extrakit.SetSprites ("GUICGBC", 0, 0, 1, 2, 3)
 		RowCount = 11
 
 	if tmpRowCount > 11: # create scrollbar
-		ScrollBar = KitWindow.CreateScrollBar (1000, {'x' : 290, 'y' : 50, 'w' : 16, 'h' : 220}, "GUISCRCW")
+		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+		ScrollBar = KitWindow.CreateScrollBar (1000, {'x' : int(290 * scale_factor), 'y' : int(50 * scale_factor), 'w' : int(16 * scale_factor), 'h' : int(220 * scale_factor)}, "GUISCRCW")
 		ScrollBar.SetVarAssoc ("TopIndex", tmpRowCount - 10, 0, tmpRowCount - 10)
 		ScrollBar.OnChange (RedrawKits)
 		KitWindow.SetEventProxy (ScrollBar)

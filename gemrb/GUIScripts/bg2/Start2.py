@@ -43,14 +43,18 @@ def OnLoad():
 		Logo.SetSprites ("biglogo", 0, frame, frame, 0, 0)
 		if frame == 1: # both tob and bp logos are shorter and not centered bams
 			btnFrame = Logo.GetFrame ()
-			Logo.SetPos (btnFrame["x"], btnFrame["y"] + 70)
+			scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+			Logo.SetPos (btnFrame["x"], btnFrame["y"] + int(70 * scale_factor))
 
-	y = 450
-	w = 640
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+	y = 450 * scale_factor
+	w = 640 * scale_factor
 	if GameCheck.IsBG2EE ():
-		y = GemRB.GetSystemVariable (SV_HEIGHT) - 100
+		# Use logical screen dimensions for layout decisions, but scale final position
+		logical_height = GemRB.GetSystemVariable (SV_HEIGHT) // scale_factor
+		y = (logical_height - 100 // scale_factor) * scale_factor
 		w = GemRB.GetSystemVariable (SV_WIDTH)
-	Label = StartWindow.CreateLabel(0x0fff0000, 0, y, w, 30, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
+	Label = StartWindow.CreateLabel(0x0fff0000, 0, y, w, 30 * scale_factor, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
 	Label.SetText (GemRB.Version)
 
 	if GameCheck.HasTOB():
@@ -176,7 +180,8 @@ def ExitPress():
 	#quit subwindow
 	QuitWindow = GemRB.LoadWindow (3, "START")
 	Pos = QuitWindow.GetPos ()
-	QuitWindow.SetPos (Pos[0] - 3, Pos[1] + 12)
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+	QuitWindow.SetPos (Pos[0] - int(3 * scale_factor), Pos[1] + int(12 * scale_factor))
 	QuitTextArea = QuitWindow.GetControl (0)
 	CancelButton = QuitWindow.GetControl (2)
 	ConfirmButton = QuitWindow.GetControl (1)

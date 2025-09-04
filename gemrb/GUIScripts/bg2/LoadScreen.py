@@ -68,13 +68,18 @@ def StartLoadScreen ():
 	def EndLoadScreen ():
 		TMessageTA = GemRB.GetView("MsgSys", 0)
 		TMessageTA.Append("[p][color=f1f28d]" + GemRB.GetString (HintStr) + "[/color][/p]\n")
-		
+
 		if GameCheck.IsBG2Demo():
 			Middle = LoadScreen.GetControl (3)
 			Middle.SetBAM ("COADCNTR", 1, 0)
-	
+
 		LoadScreen.OnClose (lambda win: GemRB.GamePause(0, 0))
-		GemRB.SetTimer(LoadScreen.Close, 500, 0)
+
+		# Scale loading screen display time with UpScaleFactor to accommodate larger assets
+		# TODO : may need to increase this, in my testing the engine does need a bit more time at 4k
+		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+		scaled_timer = int(500 * scale_factor)
+		GemRB.SetTimer(LoadScreen.Close, scaled_timer, 0)
 		return
 
 	Bar = LoadScreen.GetControl (0)

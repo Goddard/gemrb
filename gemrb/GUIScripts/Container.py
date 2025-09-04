@@ -144,11 +144,13 @@ def OpenContainerWindow ():
 
 	# fix wrong height in the guiw10.chu and reposition
 	# that chu is also used as a base for some arbitrary resolutions
-	if GameCheck.IsBG2 () and GemRB.GetSystemVariable (SV_HEIGHT) >= 768:
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+	logical_height = GemRB.GetSystemVariable (SV_HEIGHT) // scale_factor
+	if GameCheck.IsBG2 () and logical_height >= 768 // scale_factor:
 		Size = Window.GetSize ()
 		Pos = Window.GetPos ()
-		Window.SetSize (Size[0], 90)
-		Window.SetPos (Pos[0], GemRB.GetSystemVariable (SV_HEIGHT) - 90)
+		Window.SetSize (Size[0], 90 * scale_factor)
+		Window.SetPos (Pos[0], GemRB.GetSystemVariable (SV_HEIGHT) - 90 * scale_factor)
 
 	if not GameCheck.IsIWD2 () and not GameCheck.IsGemRBDemo () and not GameCheck.IsPST ():
 		# container window shouldnt be in front

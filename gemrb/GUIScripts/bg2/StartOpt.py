@@ -29,12 +29,15 @@ def OnLoad():
 	if GameCheck.HasTOB() and GemRB.GetVar("oldgame") == 1:
 		OptionsWindow.SetBackground("STARTOLD")
 
-	y = 450
-	w = 640
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+	y = 450 * scale_factor
+	w = 640 * scale_factor
 	if GameCheck.IsBG2EE ():
-		y = GemRB.GetSystemVariable (SV_HEIGHT) - 100
+		# Use logical screen dimensions for layout decisions, but scale final position
+		logical_height = GemRB.GetSystemVariable (SV_HEIGHT) // scale_factor
+		y = (logical_height - 100 // scale_factor) * scale_factor
 		w = GemRB.GetSystemVariable (SV_WIDTH)
-	Label = OptionsWindow.CreateLabel(0x0fff0000, 0, y, w, 30, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
+	Label = OptionsWindow.CreateLabel(0x0fff0000, 0, y, w, 30 * scale_factor, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
 	Label.SetText (GemRB.Version)
 
 	SoundButton = OptionsWindow.GetControl(8)

@@ -55,14 +55,16 @@ def OnLoad():
 	ButtonCount = 10
 	if len(MCRowIndices) > 10:
 		# add another button, there's another slot left
-		extramc = ClassWindow.CreateButton (15, 18, 250, 271, 20)
+		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+		extramc = ClassWindow.CreateButton (15, int(18 * scale_factor), int(250 * scale_factor), int(271 * scale_factor), int(20 * scale_factor))
 		extramc.SetState(IE_GUI_BUTTON_DISABLED)
 		extramc.SetFlags(IE_GUI_BUTTON_RADIOBUTTON, OP_OR)
 		extramc.SetSprites("GUICGBC",0, 0,1,2,3)
 		ButtonCount = 11
 	if len(MCRowIndices) > 11:
 		# bah, also add a scrollbar
-		ScrollBar = ClassWindow.CreateScrollBar(1000, {'x' : 290, 'y' : 50, 'w' : 16, 'h' : 220}, "GUISCRCW")
+		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+		ScrollBar = ClassWindow.CreateScrollBar(1000, {'x' : int(290 * scale_factor), 'y' : int(50 * scale_factor), 'w' : int(16 * scale_factor), 'h' : int(220 * scale_factor)}, "GUISCRCW")
 		ScrollBar.SetVarAssoc("TopIndex", 0, 0, len(MCRowIndices) - 11)
 		ScrollBar.OnChange (RedrawMCs)
 		ClassWindow.SetEventProxy(ScrollBar)

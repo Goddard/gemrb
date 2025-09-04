@@ -50,7 +50,8 @@ def RunStart2(isTOB):
 
 def RunStartEE():
 	StartWindow = GemRB.LoadWindow (11, "START")
-	Label = StartWindow.CreateLabel (0x0fff0000, 0, 0, 1024, 30, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+	Label = StartWindow.CreateLabel (0x0fff0000, 0, 0, 1024 * scale_factor, 30 * scale_factor, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
 	Label.SetText (GemRB.Version)
 
 	MusicTable = GemRB.LoadTable("songlist")
@@ -113,7 +114,8 @@ def OnLoad():
 
 	# SoA / ToB choice
 	StartWindow = GemRB.LoadWindow(7, "START")
-	Label = StartWindow.CreateLabel(0x0fff0000, 0,0,640,30, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+	Label = StartWindow.CreateLabel(0x0fff0000, 0,0,640 * scale_factor, 30 * scale_factor, "REALMS", "", IE_FONT_SINGLE_LINE | IE_FONT_ALIGN_CENTER)
 	Label.SetText(GemRB.Version)
 
 	TextArea = StartWindow.GetControl(0)

@@ -100,18 +100,19 @@ def InitOptionsWindow (Window):
 		MoviesButton.OnPress (OpenMovieWindow)
 
 	# GemRB extras
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
 	frame = ReturnButton.GetFrame ()
 	if GameCheck.IsIWD2 ():
 		frame = MoviesButton.GetFrame ()
-		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, 110, "GBTNLRG2")
+		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, 110 * scale_factor, "GBTNLRG2")
 	elif GameCheck.IsBG2 ():
-		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, -40, "GUBOTC", 1)
+		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, -40 * scale_factor, "GUBOTC", 1)
 	elif GameCheck.IsBG2EE ():
-		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, -50, "GUIOSTCL")
+		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, -50 * scale_factor, "GUIOSTCL")
 	elif GameCheck.IsBG1 ():
-		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, 55, "BIGBUTT")
+		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, 55 * scale_factor, "BIGBUTT")
 	elif GameCheck.IsIWD1 ():
-		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, 50, "STONEOPT", 1)
+		GUIOPTExtra.AddGemRBOptionsButton (Window, frame, 0, 50 * scale_factor, "STONEOPT", 1)
 
 	return
 
