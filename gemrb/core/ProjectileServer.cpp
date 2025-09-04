@@ -101,6 +101,11 @@ Projectile* ProjectileServer::CreateDefaultProjectile(size_t idx)
 	}
 
 	pro->SetIdentifiers(projectiles[idx].resname, idx);
+
+	// Scale projectile speed with UpScaleFactor to maintain relative speed with upscaled assets
+	const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+	pro->Speed = pro->Speed * ups;
+
 	projectiles[idx].projectile = std::make_unique<Projectile>(*pro);
 
 	return pro;
@@ -158,6 +163,11 @@ Projectile* ProjectileServer::GetProjectile(size_t idx)
 	pro->SetIdentifiers(projectiles[idx].resname, idx);
 
 	sm->GetProjectile(pro);
+
+	// Scale projectile speed with UpScaleFactor to maintain relative speed with upscaled assets
+	const int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
+	pro->Speed = pro->Speed * ups;
+
 	int Type = 0xff;
 
 	if (pro->Extension) {
