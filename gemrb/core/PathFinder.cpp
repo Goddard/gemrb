@@ -39,6 +39,8 @@
 #include "BucketPriorityQueue.h"
 #include "Debug.h"
 #include "GameData.h"
+#include "Geometry.h"
+#include "Interface.h"
 #include "Map.h"
 #include "RNG.h"
 
@@ -46,13 +48,20 @@
 #include "Scriptable/Actor.h"
 
 #include <array>
+#include <cmath>
 #include <limits>
+#include <mutex>
+#include <vector>
 
 namespace GemRB {
 
 constexpr size_t DEGREES_OF_FREEDOM = 4;
 constexpr size_t RAND_DEGREES_OF_FREEDOM = 16;
-constexpr unsigned int SEARCHMAP_SQUARE_DIAGONAL = 20; // sqrt(16 * 16 + 12 * 12)
+// SEARCHMAP_SQUARE_DIAGONAL scaled by UpScaleFactor
+static unsigned int GetSearchmapSquareDiagonal()
+{
+	return 20 * core->config.UpScaleFactor;
+}
 constexpr std::array<char, DEGREES_OF_FREEDOM> dxAdjacent { { 1, 0, -1, 0 } };
 constexpr std::array<char, DEGREES_OF_FREEDOM> dyAdjacent { { 0, 1, 0, -1 } };
 
@@ -72,14 +81,15 @@ Path Map::RunAway(const Point& s, const Point& d, int maxPathLength, bool backAw
 	size_t tries = 0;
 	NormalizeDeltas(dx, dy, float_t(gamedata->GetStepTime()) / caller->GetSpeed());
 	if (std::abs(dx) <= 0.333 && std::abs(dy) <= 0.333) return {};
-	while (SquaredDistance(p, s) < unsigned(maxPathLength * maxPathLength * SEARCHMAP_SQUARE_DIAGONAL * SEARCHMAP_SQUARE_DIAGONAL)) {
+	while (SquaredDistance(p, s) < unsigned(maxPathLength * maxPathLength * GetSearchmapSquareDiagonal() * GetSearchmapSquareDiagonal())) {
 		Point rad(std::lround(p.x + 3 * xSign * dx), std::lround(p.y + 3 * ySign * dy));
 		if (!(GetBlockedInRadius(rad, caller->circleSize) & PathMapFlags::PASSABLE)) {
 			tries++;
 			// Give up and call the pathfinder if backed into a corner
 			// should we return nullptr instead, so we don't accidentally get closer to d?
 			// it matches more closely the iwd beetles in ar1015, but is too restrictive — then they can't move at all
-			if (tries > RAND_DEGREES_OF_FREEDOM) break;
+			int ups = core->config.UpScaleFactor;
+			if (tries > (RAND_DEGREES_OF_FREEDOM * ups)) break;
 			// Random rotation
 			xSign = RandomFlip() ? -1 : 1;
 			ySign = RandomFlip() ? -1 : 1;
@@ -96,23 +106,24 @@ PathNode Map::RandomWalk(const Point& s, int size, int radius, const Actor* call
 {
 	if (!caller || !caller->GetSpeed()) return {};
 	NavmapPoint p = s;
-	size_t i = RAND<size_t>(0, RAND_DEGREES_OF_FREEDOM - 1);
-	float_t dx = 3 * dxRand[i];
-	float_t dy = 3 * dyRand[i];
+	int ups = core->config.UpScaleFactor;
+	size_t i = RAND<size_t>(0, (RAND_DEGREES_OF_FREEDOM * ups) - 1);
+	float_t dx = 3 * dxRand[i % RAND_DEGREES_OF_FREEDOM];
+	float_t dy = 3 * dyRand[i % RAND_DEGREES_OF_FREEDOM];
 
 	NormalizeDeltas(dx, dy, float_t(gamedata->GetStepTime()) / caller->GetSpeed());
 	size_t tries = 0;
-	while (SquaredDistance(p, s) < unsigned(radius * radius * SEARCHMAP_SQUARE_DIAGONAL * SEARCHMAP_SQUARE_DIAGONAL)) {
+	while (SquaredDistance(p, s) < unsigned(radius * radius * GetSearchmapSquareDiagonal() * GetSearchmapSquareDiagonal())) {
 		if (!(GetBlockedInRadius(p + Point(dx, dy), size) & PathMapFlags::PASSABLE)) {
 			tries++;
 			// Give up if backed into a corner
-			if (tries > RAND_DEGREES_OF_FREEDOM) {
+			if (tries > (RAND_DEGREES_OF_FREEDOM * ups)) {
 				return {};
 			}
 			// Random rotation
-			i = RAND<size_t>(0, RAND_DEGREES_OF_FREEDOM - 1);
-			dx = 3 * dxRand[i];
-			dy = 3 * dyRand[i];
+			i = RAND<size_t>(0, (RAND_DEGREES_OF_FREEDOM * ups) - 1);
+			dx = 3 * dxRand[i % RAND_DEGREES_OF_FREEDOM];
+			dy = 3 * dyRand[i % RAND_DEGREES_OF_FREEDOM];
 			NormalizeDeltas(dx, dy, float_t(gamedata->GetStepTime()) / caller->GetSpeed());
 			p = s;
 		} else {
@@ -212,8 +223,8 @@ Path Map::GetLinePath(const Point& start, const Point& dest, int Speed, orient_t
 PathNode Map::GetLineEnd(const Point& p, int steps, orient_t orient) const
 {
 	PathNode lineEnd;
-	lineEnd.point.x = p.x + steps * SEARCHMAP_SQUARE_DIAGONAL * dxRand[orient];
-	lineEnd.point.y = p.y + steps * SEARCHMAP_SQUARE_DIAGONAL * dyRand[orient];
+	lineEnd.point.x = p.x + steps * GetSearchmapSquareDiagonal() * dxRand[static_cast<size_t>(orient) % RAND_DEGREES_OF_FREEDOM];
+	lineEnd.point.y = p.y + steps * GetSearchmapSquareDiagonal() * dyRand[static_cast<size_t>(orient) % RAND_DEGREES_OF_FREEDOM];
 	const Size& mapSize = PropsSize();
 	lineEnd.point = Clamp(lineEnd.point, Point(1, 1), Point((mapSize.w - 1) * 16, (mapSize.h - 1) * 12));
 	lineEnd.orient = GetOrient(p, lineEnd.point);
@@ -269,10 +280,20 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 
 	// make most data storage for this algorithm static, to avoid memory allocations;
 	// each run we just clear the storage, which is keeping the underlying allocated memory at hand
-	static BucketPriorityQueue open;
+	static BucketPriorityQueue* open = nullptr;
 	static std::vector<bool> isClosed;
 	static std::vector<NavmapPoint> parents;
 	static std::vector<unsigned short> distFromStart;
+	static std::mutex pathfindingMutex;
+
+	// Lock to prevent simultaneous pathfinding operations from interfering
+	std::lock_guard<std::mutex> lock(pathfindingMutex);
+
+	// Initialize or recreate priority queue if map size changed
+	if (!open || open->buckets.bucketsCount < BucketPriorityQueue::CostPointBuckets::CalculateBucketsCount(mapSize.w, mapSize.h)) {
+		delete open;
+		open = new BucketPriorityQueue(mapSize.w, mapSize.h);
+	}
 
 	// resize if needed (in case of a map change; probably can be done once, when new map is loaded)
 	if (isClosed.size() != mapCellsCount) {
@@ -281,7 +302,7 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	}
 
 	// cleanup
-	open.Clear();
+	open->Clear();
 	isClosed.clear();
 	isClosed.resize(mapCellsCount, false);
 	// `.clear() + .resize()` is generally more performant than `memset` in cases where we have relatively small
@@ -293,13 +314,20 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	distFromStart[smptSource.y * mapSize.w + smptSource.x] = 0;
 	parents[smptSource.y * mapSize.w + smptSource.x] = nmptSource;
 
-	open.Push(nmptSource, 0);
+	open->Push(nmptSource, 0);
 
 	bool foundPath = false;
+	int ups = core->config.UpScaleFactor;
+	// Don't scale squaredMinDist - keep it in navmap coordinates to match SquaredDistance calculations
 	unsigned int squaredMinDist = minDistance * minDistance;
 
-	// Weighted heuristic. Finds sub-optimal paths but should be quite a bit faster
-	constexpr float_t HEURISTIC_WEIGHT = 1.5;
+	// Add iteration limits for upscaled maps to prevent infinite loops
+	const int maxIterations = std::min(static_cast<int>(mapCellsCount), 50000); // Limit based on map size, max 50k iterations
+	int iterations = 0;
+
+	// Dynamic heuristic weight based on map size and UpScaleFactor
+	const float_t HEURISTIC_WEIGHT = ups > 2 ? 2.0f : 1.5f; // More aggressive for large maps
+
 	const auto getHeuristic = [&](const SearchmapPoint& smptChild, const int& smptChildIdx) {
 		// Calculate heuristic
 		const int xDist = smptChild.x - smptDest.x;
@@ -314,8 +342,9 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 		return estDist;
 	};
 
-	while (!open.IsEmpty()) {
-		const NavmapPoint nmptCurrent = open.Pop();
+	while (!open->IsEmpty() && iterations < maxIterations) {
+		++iterations;
+		const NavmapPoint nmptCurrent = open->Pop();
 
 		const SearchmapPoint smptCurrent { nmptCurrent };
 		const int smptCurrentIdx = smptCurrent.y * mapSize.w + smptCurrent.x;
@@ -331,8 +360,8 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 
 		if (minDistance &&
 		    parents[smptCurrentIdx] != nmptCurrent &&
-		    SquaredDistance(nmptCurrent, nmptDest) < squaredMinDist &&
-		    (!(flags & PF_SIGHT) || IsVisibleLOS(smptCurrent, smptDest0, caller))) { // FIXME: should probably be smptDest
+		    SquaredDistance(nmptCurrent, nmptDest) < squaredMinDist && // More conservative termination
+		    (!(flags & PF_SIGHT) || IsVisibleLOS(nmptCurrent, nmptDest, caller))) { // Use NavmapPoint coordinates for consistency
 			smptDest = smptCurrent;
 			nmptDest = nmptCurrent;
 			foundPath = true;
@@ -398,7 +427,7 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 				}
 
 				const float newCost = getHeuristic(smptChild, smptChildIdx);
-				open.Push(nmptChild, newCost);
+				open->Push(nmptChild, newCost);
 			}
 		}
 	}
@@ -430,9 +459,18 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 		return resultPath;
 	} else if (InDebugMode(DebugMode::PATHFINDER)) {
 		if (caller) {
-			Log(DEBUG, "FindPath", "Pathing failed for {}", fmt::WideToChar { caller->GetShortName() });
+			if (iterations >= maxIterations) {
+				Log(DEBUG, "FindPath", "Pathing failed for {} (iteration limit reached: {}/{})",
+				    fmt::WideToChar { caller->GetShortName() }, iterations, maxIterations);
+			} else {
+				Log(DEBUG, "FindPath", "Pathing failed for {}", fmt::WideToChar { caller->GetShortName() });
+			}
 		} else {
-			Log(DEBUG, "FindPath", "Pathing failed");
+			if (iterations >= maxIterations) {
+				Log(DEBUG, "FindPath", "Pathing failed (iteration limit reached: {}/{})", iterations, maxIterations);
+			} else {
+				Log(DEBUG, "FindPath", "Pathing failed");
+			}
 		}
 	}
 
@@ -441,7 +479,9 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 
 void Map::NormalizeDeltas(float_t& dx, float_t& dy, const float_t factor)
 {
-	constexpr float_t STEP_RADIUS = 2.0;
+	const int ups = core->config.UpScaleFactor;
+	constexpr float_t BASE_STEP_RADIUS = 2.0;
+	const float_t STEP_RADIUS = BASE_STEP_RADIUS * ups;
 
 	const float_t ySign = std::copysign(1.0f, dy);
 	const float_t xSign = std::copysign(1.0f, dx);

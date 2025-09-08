@@ -56,27 +56,34 @@ unsigned int Distance(const Point& p, const Scriptable* b)
 	return (unsigned int) std::hypot(x, y);
 }
 
-constexpr int DistanceFactor = 4; // ignore angle, go for the bigger size between [3, 4]
+int DistanceFactor()
+{
+	return 4 * core->config.UpScaleFactor;
+} // ignore angle, go for the bigger size between [3, 4]
 unsigned int PersonalDistance(const Point& p, const Scriptable* b)
 {
 	long x = p.x - b->Pos.x;
 	long y = p.y - b->Pos.y;
 	auto ret = std::hypot(x, y);
 	if (b->Type == ST_ACTOR) {
-		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * DistanceFactor;
+		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * DistanceFactor();
 	}
 	if (ret < 0) return (unsigned int) 0;
 	return (unsigned int) ret;
 }
 
-constexpr int SquaredDistanceFactor = 14; // ignore angle, roughly middle of an elliptic [9, 16]
+int SquaredDistanceFactor()
+{
+	return 14 * core->config.UpScaleFactor;
+	;
+} // ignore angle, roughly middle of an elliptic [9, 16]
 unsigned int SquaredPersonalDistance(const Point& p, const Scriptable* b)
 {
 	long x = p.x - b->Pos.x;
 	long y = p.y - b->Pos.y;
 	int ret = static_cast<int>(x * x + y * y);
 	if (b->Type == ST_ACTOR) {
-		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * SquaredDistanceFactor;
+		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * SquaredDistanceFactor();
 	}
 	if (ret < 0) return (unsigned int) 0;
 	return (unsigned int) ret;
@@ -103,10 +110,10 @@ unsigned int PersonalDistance(const Scriptable* a, const Scriptable* b)
 	long y = a->Pos.y - b->Pos.y;
 	auto ret = std::hypot(x, y);
 	if (a->Type == ST_ACTOR) {
-		ret -= static_cast<const Actor*>(a)->CircleSize2Radius() * DistanceFactor;
+		ret -= static_cast<const Actor*>(a)->CircleSize2Radius() * DistanceFactor();
 	}
 	if (b->Type == ST_ACTOR) {
-		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * DistanceFactor;
+		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * DistanceFactor();
 	}
 	if (ret < 0) return (unsigned int) 0;
 	return (unsigned int) ret;
@@ -118,10 +125,10 @@ unsigned int SquaredPersonalDistance(const Scriptable* a, const Scriptable* b)
 	long y = a->Pos.y - b->Pos.y;
 	int ret = static_cast<int>(x * x + y * y);
 	if (a->Type == ST_ACTOR) {
-		ret -= static_cast<const Actor*>(a)->CircleSize2Radius() * SquaredDistanceFactor;
+		ret -= static_cast<const Actor*>(a)->CircleSize2Radius() * SquaredDistanceFactor();
 	}
 	if (b->Type == ST_ACTOR) {
-		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * SquaredDistanceFactor;
+		ret -= static_cast<const Actor*>(b)->CircleSize2Radius() * SquaredDistanceFactor();
 	}
 	if (ret < 0) return (unsigned int) 0;
 	return (unsigned int) ret;
@@ -190,8 +197,11 @@ unsigned int PersonalLineDistance(const Point& v, const Point& w, const Scriptab
 // 16 16 16 16 15 15 15 14 14 14 13 13 13 12 12 12 12 12 12
 float_t Feet2Pixels(int feet, float_t angle)
 {
-	float_t sin2 = std::pow(std::sin(angle) / 12, 2);
-	float_t cos2 = std::pow(std::cos(angle) / 16, 2);
+	// Account for UpScaleFactor in coordinate conversion (but NOT zoomLevel)
+	const int ups = core->config.UpScaleFactor;
+
+	float_t sin2 = std::pow(std::sin(angle) / (12 * ups), 2);
+	float_t cos2 = std::pow(std::cos(angle) / (16 * ups), 2);
 	float_t r = std::sqrt(1 / (cos2 + sin2));
 	return r * feet;
 }
@@ -211,6 +221,9 @@ bool WithinAudibleRange(const Actor* actor, const Point& dest)
 	} else {
 		distance = 28;
 	}
+	// TODO : need to test this more
+	const int ups = core->config.UpScaleFactor;
+	distance *= ups;
 	return WithinRange(actor, dest, distance);
 }
 

@@ -24,7 +24,8 @@
 
 #include "Region.h"
 
-#include <array>
+#include <cmath>
+#include <vector>
 
 namespace GemRB {
 
@@ -38,12 +39,14 @@ namespace GemRB {
  */
 class BucketPriorityQueue {
 public:
+	BucketPriorityQueue(int mapWidth = 0, int mapHeight = 0) : buckets(mapWidth, mapHeight), minBucket(buckets.bucketsCount), count(0) {}
+
 	void Push(const Point& point, const float cost)
 	{
 		++count;
 		// store the new point in the bucket with index equals to its cost (rounded to zero), which
 		// speeds up the search for the cheapest point
-		const int bucketIdx = std::min(static_cast<int>(cost), CostPointBuckets::BUCKETS_COUNT - 1);
+		const int bucketIdx = std::min(static_cast<int>(cost), buckets.bucketsCount - 1);
 		minBucket = std::min(minBucket, bucketIdx);
 		buckets.PushPoint(bucketIdx, point, cost);
 	}
@@ -52,7 +55,7 @@ public:
 	{
 		--count;
 		// find the first non-empty bucket with minimum index - under this index we will find bucket with the cheapest Point
-		while (minBucket < CostPointBuckets::BUCKETS_COUNT && buckets.IsEmpty(minBucket)) {
+		while (minBucket < buckets.bucketsCount && buckets.IsEmpty(minBucket)) {
 			++minBucket;
 		}
 
@@ -77,11 +80,11 @@ public:
 	void Clear()
 	{
 		count = 0;
-		minBucket = CostPointBuckets::BUCKETS_COUNT;
+		minBucket = buckets.bucketsCount;
 		buckets.Clear();
 	}
 
-private:
+public:
 	/**
 	 *  Specialized class providing buckets for pathfiding's set of 'open' nodes - a pair of {Point, Cost}, which should
 	 *  be accessed based off their lowest cost.
@@ -91,15 +94,25 @@ private:
 	 */
 	class CostPointBuckets {
 	public:
-		// we should have buckets count directly related to the maximum available Cost value.
-		// The highest value I've seen was around 3k on a big map, so I set it to over 5k to have a safe margin.
-		// Keep in mind to change this constant, if you will change the cost calculating formula.
-		constexpr static int32_t BUCKETS_COUNT = 1024 * 5;
-
-		CostPointBuckets()
+		// Dynamic sizing based on map size to prevent buffer overflows
+		// Calculate maximum expected cost based on map diagonal distance
+		static int32_t CalculateBucketsCount(int mapWidth, int mapHeight)
 		{
-			Clear();
+			// Estimate maximum cost: map diagonal * heuristic weight * safety factor
+			const float maxDistance = std::hypotf(mapWidth, mapHeight);
+			const float maxCost = maxDistance * 5.0f; // Increased safety factor for accumulated costs
+			return static_cast<int32_t>(std::ceil(maxCost)) + 2000; // Extra 2000 buckets for safety
 		}
+
+		// Default fallback for compatibility
+		constexpr static int32_t DEFAULT_BUCKETS_COUNT = 1024 * 5;
+
+		CostPointBuckets(int mapWidth = 0, int mapHeight = 0)
+			: bucketsCount(mapWidth > 0 && mapHeight > 0 ? CalculateBucketsCount(mapWidth, mapHeight) : DEFAULT_BUCKETS_COUNT)
+		{
+			InitializeStorage();
+		}
+
 
 		bool IsEmpty(const int32_t bucketIdx) const
 		{
@@ -127,7 +140,7 @@ private:
 		{
 			// zero only the bucketSize, we don't care if the values from storage are
 			// zeroed if bucketSize tells the bucket is empty
-			std::memset(bucketSize.data(), 0, BUCKETS_COUNT * sizeof(bucketSize[0]));
+			std::memset(bucketSize.data(), 0, bucketsCount * sizeof(bucketSize[0]));
 		}
 
 		void PushPoint(const int32_t bucketIdx, const Point& point, const float cost)
@@ -143,25 +156,34 @@ private:
 			return &storageCosts[GetBucketBeginIdx(bucketIdx)];
 		}
 
+	public:
+		// Public access to buckets count
+		const int32_t bucketsCount;
+
 	private:
 		constexpr static int32_t BUCKET_SIZE = 100;
+
+		void InitializeStorage()
+		{
+			storagePoints.resize(BUCKET_SIZE * bucketsCount);
+			storageCosts.resize(BUCKET_SIZE * bucketsCount);
+			bucketSize.resize(bucketsCount);
+			Clear();
+		}
 
 		static int32_t GetBucketBeginIdx(const int32_t bucketIdx)
 		{
 			return BUCKET_SIZE * bucketIdx;
 		}
 
-		// used 2 separate arrays for storing Points and Costs, as the linear search performs better if there are
-		// only the Costs prefetched, without cache pressure from unnecessarily loading paired Points
-		std::array<Point, BUCKET_SIZE * BUCKETS_COUNT> storagePoints;
-		std::array<float, BUCKET_SIZE * BUCKETS_COUNT> storageCosts;
-
-		// bucketSize tells how many items are currently stored in each bucket
-		std::array<uint8_t, BUCKETS_COUNT> bucketSize;
+		// Dynamic storage that scales with map size
+		std::vector<Point> storagePoints;
+		std::vector<float> storageCosts;
+		std::vector<uint8_t> bucketSize;
 	};
 
 	CostPointBuckets buckets;
-	int minBucket = CostPointBuckets::BUCKETS_COUNT;
+	int minBucket;
 	int count = 0;
 };
 

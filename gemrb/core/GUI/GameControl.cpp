@@ -2503,10 +2503,22 @@ bool GameControl::OnMouseWheelScroll(const Point& delta)
 	int ups = core->config.UpScaleFactor ? core->config.UpScaleFactor : 1;
 	const double sEffMin = 2.0; // desired min effective scale (max zoom out) relative to base assets
 	const double sEffMax = 8.0; // desired max effective scale (max zoom in) relative to base assets
+
+	// The zoom level is inverse to scale (100 = 1.0x, >100 = zoom out, <100 = zoom in)
+	// For UpScaleFactor=1, allow more zoom out range since assets are at native size
 	const double sMin = sEffMin / (double) ups; // world->screen scale at max zoom out
 	const double sMax = sEffMax / (double) ups; // world->screen scale at max zoom in
+
 	int minZoomAllowed = (int) std::lround(100.0 / sMax); // smaller value => zooms in further
 	int maxZoomAllowed = (int) std::lround(100.0 / sMin); // larger value => zooms out further
+
+	// Special handling for UpScaleFactor=1 to balance zoom in/out ranges
+	// Could zoom in further, but you can see tile stiching at extremes
+	if (ups == 1) {
+		maxZoomAllowed = std::max(maxZoomAllowed, 200); // Allow zoom out up to 2x the normal range for UpScaleFactor=1
+		minZoomAllowed = std::max(minZoomAllowed, 50); // Limit zoom in to match UpScaleFactor=4 range
+	}
+
 	// sanity clamp and ordering
 	if (minZoomAllowed < 10) minZoomAllowed = 10;
 	if (maxZoomAllowed > 1000) maxZoomAllowed = 1000;

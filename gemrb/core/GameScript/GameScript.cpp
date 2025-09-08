@@ -1749,6 +1749,8 @@ void InitializeIEScript()
 	if (core->HasFeature(GFFlags::AREA_OVERRIDE)) {
 		MAX_OPERATING_DISTANCE = 40 * 3;
 	}
+	// Scale MAX_OPERATING_DISTANCE by UpScaleFactor to match the scaled world
+	MAX_OPERATING_DISTANCE *= core->config.UpScaleFactor;
 
 	int tT = core->LoadSymbol("trigger");
 	int aT = core->LoadSymbol("action");
