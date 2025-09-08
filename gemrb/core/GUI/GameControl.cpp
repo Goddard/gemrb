@@ -77,6 +77,12 @@ class Formations {
 		for (unsigned int i = 0; i < formationcount; i++) {
 			for (uint8_t j = 0; j < FORMATIONSIZE; j++) {
 				Point p(tab->QueryFieldSigned<int>(i, j * 2), tab->QueryFieldSigned<int>(i, j * 2 + 1));
+
+				// Scale formation positions by UpScaleFactor using direct member access
+				const int ups = core->config.UpScaleFactor;
+				p.x *= ups;
+				p.y *= ups;
+
 				formations[i][j] = p;
 			}
 		}
@@ -159,6 +165,7 @@ Point GameControl::GetFormationPoint(const Point& origin, size_t pos, float_t an
 	const Game* game = core->GetGame();
 	const Map* area = game->GetCurrentArea();
 	assert(area);
+
 
 	static constexpr int radius = 36 / 2; // 36 diameter is copied from make_formation.py
 	const auto& formationid = game->GetFormation();
