@@ -24,7 +24,11 @@
 
 #include "Region.h"
 
+#include "Logging/Logging.h"
+
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace GemRB {
@@ -44,31 +48,54 @@ public:
 	void Push(const Point& point, const float cost)
 	{
 		++count;
-		// store the new point in the bucket with index equals to its cost (rounded to zero), which
-		// speeds up the search for the cheapest point
-		const int bucketIdx = std::min(static_cast<int>(cost), buckets.bucketsCount - 1);
+		// sanitize cost: protect against NaN/Inf and absurdly large/small values
+		float c = cost;
+		if (!std::isfinite(c)) {
+			Log(WARNING, "BucketPriorityQueue", "Push: non-finite cost {} -> clamping to max bucket", c);
+			c = static_cast<float>(buckets.bucketsCount - 1);
+		}
+
+		// compute bucket index from cost (floor), clamp to valid range
+		int bucketIdx = static_cast<int>(std::floor(c));
+		if (bucketIdx < 0) {
+			bucketIdx = 0;
+		} else if (bucketIdx >= buckets.bucketsCount) {
+			Log(WARNING, "BucketPriorityQueue", "Push: computed bucketIdx {} >= bucketsCount {} -> clamping to last bucket",
+			    bucketIdx, buckets.bucketsCount);
+			bucketIdx = buckets.bucketsCount - 1;
+		}
+
 		minBucket = std::min(minBucket, bucketIdx);
-		buckets.PushPoint(bucketIdx, point, cost);
+		buckets.PushPoint(bucketIdx, point, c);
 	}
 
 	Point Pop()
 	{
-		--count;
+		// Defensive: ensure the queue actually contains elements before popping.
+		if (IsEmpty()) {
+			Log(ERROR, "BucketPriorityQueue", "Pop called on empty queue -> returning default Point");
+			return Point();
+		}
+
 		// find the first non-empty bucket with minimum index - under this index we will find bucket with the cheapest Point
 		while (minBucket < buckets.bucketsCount && buckets.IsEmpty(minBucket)) {
 			++minBucket;
 		}
 
-		// if you want to use this class outside our pathfinder, you should check HERE if the item even exists;
-		// we don't do this, because before every Pop() call we check whether the priority queue isn't empty
+		// If we reached past the last bucket, nothing to pop; return default Point instead of UB.
+		if (minBucket >= buckets.bucketsCount) {
+			Log(ERROR, "BucketPriorityQueue", "Pop: no non-empty buckets found (minBucket {}) -> returning default Point", minBucket);
+			return Point();
+		}
 
-		// find the minimum cost index inside this bucket (e.g. Points with Cost 11.0, 11.5 and 11.75 will all land in the bucket with index 11);
-		// use linear search, it's the most effective for the low elements count, and we will have typically under 10 elements in the bucket
+		// find the minimum cost index inside this bucket
 		const auto costData = buckets.CostData(minBucket);
 		int32_t minIdx = 0;
 		for (int i = 1; i < buckets.Size(minBucket); ++i) {
 			minIdx = costData[i] < costData[minIdx] ? i : minIdx;
 		}
+
+		--count;
 		return buckets.PopPoint(minBucket, minIdx);
 	}
 
@@ -116,11 +143,21 @@ public:
 
 		bool IsEmpty(const int32_t bucketIdx) const
 		{
+			if (bucketIdx < 0 || bucketIdx >= bucketsCount) {
+				Log(WARNING, "BucketPriorityQueue", "IsEmpty: bucketIdx {} out of range [0, {}) -> returning true",
+				    bucketIdx, bucketsCount);
+				return true;
+			}
 			return bucketSize[bucketIdx] == 0;
 		}
 
 		int Size(const int32_t bucketIdx) const
 		{
+			if (bucketIdx < 0 || bucketIdx >= bucketsCount) {
+				Log(WARNING, "BucketPriorityQueue", "Size: bucketIdx {} out of range [0, {}) -> returning 0",
+				    bucketIdx, bucketsCount);
+				return 0;
+			}
 			return bucketSize[bucketIdx];
 		}
 
@@ -145,10 +182,47 @@ public:
 
 		void PushPoint(const int32_t bucketIdx, const Point& point, const float cost)
 		{
-			const auto storageNewLastUsedIdx = GetBucketBeginIdx(bucketIdx) + bucketSize[bucketIdx];
+			// defensive checks: ensure bucketIdx within expected range
+			int32_t idx = bucketIdx;
+			if (idx < 0) {
+				Log(DEBUG, "BucketPriorityQueue", "PushPoint: negative bucketIdx {} -> clamping to 0", idx);
+				idx = 0;
+			} else if (idx >= bucketsCount) {
+				Log(WARNING, "BucketPriorityQueue", "PushPoint: bucketIdx {} >= bucketsCount {} -> clamping to last bucket",
+				    idx, bucketsCount);
+				idx = bucketsCount - 1;
+			}
+
+			// ensure bucketSize vector can be indexed safely
+			if (static_cast<size_t>(idx) >= bucketSize.size()) {
+				Log(ERROR, "BucketPriorityQueue", "PushPoint: internal bucketSize vector too small (idx {} >= size {}) - resizing bucketSize",
+				    idx, bucketSize.size());
+				bucketSize.resize(bucketsCount);
+			}
+
+			const auto storageNewLastUsedIdx = GetBucketBeginIdx(idx) + bucketSize[idx];
+
+			// if storage vectors are unexpectedly small, resize them instead of crashing
+			const size_t requiredIndex = static_cast<size_t>(storageNewLastUsedIdx);
+			const size_t neededStorage = static_cast<size_t>(GetBucketBeginIdx(idx + 1));
+			// ensure we resize to cover the requiredIndex (which will be written) => requiredIndex + 1
+			if (requiredIndex >= storageCosts.size() || neededStorage > storageCosts.size()) {
+				// exponential growth strategy: double current size until it fits or use neededStorage
+				size_t newSize = std::max(storageCosts.size() ? storageCosts.size() : static_cast<size_t>(1), static_cast<size_t>(1));
+				while (newSize <= requiredIndex || newSize < neededStorage) {
+					newSize = newSize * 2;
+				}
+				newSize = std::max(newSize, requiredIndex + 1);
+				newSize = std::max(newSize, neededStorage);
+				Log(WARNING, "BucketPriorityQueue", "PushPoint: storage index {} or needed {} >= storage size {} - resizing storage to {}",
+				    storageNewLastUsedIdx, neededStorage, storageCosts.size(), newSize);
+				storageCosts.resize(newSize);
+				storagePoints.resize(newSize);
+			}
+
 			storageCosts[storageNewLastUsedIdx] = cost;
 			storagePoints[storageNewLastUsedIdx] = point;
-			++bucketSize[bucketIdx];
+			++bucketSize[idx];
 		}
 
 		const float* CostData(const int32_t bucketIdx) const
