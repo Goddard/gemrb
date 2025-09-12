@@ -1150,7 +1150,13 @@ def SpellPressed ():
 	slot = GemRB.GetVar ("QSpell")
 	if GemRB.GetVar ("SettingButtons"):
 		slot = GemRB.GetVar ("QuickSlotButton") - 3 # 12 buttons, 9 quickspells, first 3 buttons hardcoded
-	if slot is not None:
+	# Debug: observe slot selection path
+	try:
+		print("[ActionsWindow] SpellPressed: slot=", slot, "SettingButtons=", GemRB.GetVar ("SettingButtons"))
+	except Exception:
+		pass
+	# Only assign quickspell if slot is a valid quickslot index (0..8). QSpell == -1 means general cast, not assignment.
+	if isinstance(slot, int) and 0 <= slot < 9:
 		# setup quickspell slot
 		# if spell has no target, return
 		# otherwise continue with casting

@@ -67,8 +67,8 @@ bool TISImporter::Open(DataStream* stream)
 	return true;
 }
 
-Tile* TISImporter::GetTile(const std::vector<ieWord>& indexes,
-			   unsigned short* secondary)
+Tile* TISImporter::GetTile(const std::vector<ieDword>& indexes,
+			   ieDword* secondary)
 {
 	size_t count = indexes.size();
 	std::vector<Animation::frame_t> frames;

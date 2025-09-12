@@ -75,7 +75,7 @@ public:
 	ieVariable LinkedInfo;
 	ResRef ID; //WED ID
 	Holder<TileOverlay> overlay;
-	std::vector<ieWord> tiles;
+	std::vector<ieDword> tiles;
 	ieDword Flags = 0;
 	int closedIndex = 0;
 	//trigger areas
@@ -107,7 +107,7 @@ public:
 	void UpdateDoor();
 	void ToggleTiles(int State, int playsound = false);
 	void SetName(const ResRef& Name); // sets door ID
-	void SetTiles(std::vector<ieWord>);
+	void SetTiles(std::vector<ieDword>);
 	bool CanDetectTrap() const override;
 	void SetDoorLocked(int Locked, int playsound);
 	void SetDoorOpen(int Open, int playsound, ieDword openerID, bool addTrigger = true);

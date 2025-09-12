@@ -1542,7 +1542,12 @@ int GameScript::Range(Scriptable* Sender, const Trigger* parameters)
 	}
 	SearchmapPoint targetPos { scr->Pos };
 	int distance = SquaredDistance(senderPos, targetPos);
-	bool matched = DiffCore(distance, (parameters->int0Parameter + 1) * (parameters->int0Parameter + 1), parameters->int1Parameter);
+	// Account for UpScaleFactor: scripted ranges are expressed in searchmap feet units.
+	// With upscaled assets, positions expand proportionally; scale the allowed radius accordingly.
+	const int ups = core->config.UpScaleFactor;
+	const int r = parameters->int0Parameter + 1;
+	const int scaledR = r * ups;
+	bool matched = DiffCore(distance, scaledR * scaledR, parameters->int1Parameter);
 	if (matched) {
 		Sender->SetLastTrigger(trigger_range, scr->GetGlobalID());
 	}

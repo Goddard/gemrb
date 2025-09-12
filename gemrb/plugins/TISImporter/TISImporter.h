@@ -55,8 +55,8 @@ public:
 	~TISImporter() override;
 	TISImporter& operator=(const TISImporter&) = delete;
 	bool Open(DataStream* stream) override;
-	Tile* GetTile(const std::vector<ieWord>& indexes,
-		      unsigned short* secondary = NULL) override;
+	Tile* GetTile(const std::vector<ieDword>& indexes,
+		      ieDword* secondary = NULL) override;
 	Holder<Sprite2D> GetTile(int index);
 };
 

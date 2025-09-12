@@ -76,7 +76,7 @@ TileObject* TileMap::GetTile(unsigned int idx)
 
 //doors
 Door* TileMap::AddDoor(const ResRef& ID, const ieVariable& Name, unsigned int Flags,
-		       int ClosedIndex, std::vector<ieWord> indices, DoorTrigger&& dt)
+		       int ClosedIndex, std::vector<ieDword> indices, DoorTrigger&& dt)
 {
 	Door* door = new Door(overlays[0], std::move(dt));
 	door->Flags = Flags;

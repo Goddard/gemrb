@@ -42,6 +42,8 @@ class WEDImporter : public TileMapMgr {
 private:
 	std::vector<Overlay> overlays;
 	DataStream* str = nullptr;
+	// Tracks if currently opened WED is version 1.4 (widened fields)
+	bool IsV14 = false;
 	ieDword OverlaysCount = 0;
 	ieDword DoorsCount = 0;
 	ieDword OverlaysOffset = 0;
@@ -75,7 +77,7 @@ public:
 	bool Open(DataStream* stream) override;
 	//if tilemap already exists, don't create it
 	TileMap* GetTileMap(TileMap* tm) const override;
-	std::vector<ieWord> GetDoorIndices(const ResRef&, bool& BaseClosed) override;
+	std::vector<ieDword> GetDoorIndices(const ResRef&, bool& BaseClosed) override;
 
 	std::vector<WallPolygonGroup> GetWallGroups() const override;
 

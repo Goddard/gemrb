@@ -144,7 +144,7 @@ void Door::SetName(const ResRef& name)
 	ID = name;
 }
 
-void Door::SetTiles(std::vector<ieWord> Tiles)
+void Door::SetTiles(std::vector<ieDword> Tiles)
 {
 	tiles = std::move(Tiles);
 }

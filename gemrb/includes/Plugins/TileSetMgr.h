@@ -33,8 +33,8 @@ namespace GemRB {
 class GEM_EXPORT_T TileSetMgr : public Plugin {
 public:
 	virtual bool Open(DataStream* stream) = 0;
-	virtual Tile* GetTile(const std::vector<ieWord>& indexes,
-			      unsigned short* secondary = NULL) = 0;
+	virtual Tile* GetTile(const std::vector<ieDword>& indexes,
+			      ieDword* secondary = NULL) = 0;
 };
 
 }
