@@ -119,11 +119,11 @@ Buttons = [-1] * StoreButtonCount
 StoreWindowPlacement = WINDOW_HCENTER | WINDOW_VCENTER
 # Use logical screen height for layout decisions to account for upscaled assets
 scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-ResolutionH = GemRB.GetSystemVariable (SV_HEIGHT) // scale_factor
+ResolutionH = GemRB.GetSystemVariable (SV_HEIGHT)
 # iwd2 keeps everything displayed, so we only vertically center when
 # there's enough room to fit bottom windows (934 = (600-433)*2 + 600)
-logical_threshold_600 = 600 // scale_factor
-logical_threshold_934 = 934 // scale_factor
+logical_threshold_600 = 600 * scale_factor
+logical_threshold_934 = 934 * scale_factor
 if ResolutionH < logical_threshold_600 or (GameCheck.IsIWD2 () and ResolutionH < logical_threshold_934):
 	StoreWindowPlacement = WINDOW_HCENTER | WINDOW_TOP
 
