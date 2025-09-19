@@ -21,6 +21,7 @@
 #include "ResourceManager.h"
 
 #include "Interface.h"
+#include "MoviePlayer.h"
 #include "PluginMgr.h"
 #include "Resource.h"
 #include "ResourceDesc.h"
@@ -127,6 +128,26 @@ bool ResourceManager::Exists(StringView ResRef, SClass_ID type, bool silent) con
 	if (ResRef.empty())
 		return false;
 	// TODO: check various caches
+	// Special-case: when asked for an MVE resource by SClass_ID, consider all movie formats
+	// registered under MoviePlayer. This lets override provide .bik/.mov/.wbm as a drop-in.
+	if (type == IE_MVE_CLASS_ID) {
+		const std::vector<ResourceDesc>& movieTypes = PluginMgr::Get()->GetResourceDesc(&MoviePlayer::ID);
+		for (const auto& path : searchPath) {
+			for (const auto& desc : movieTypes) {
+				if (path->HasResource(ResRef, desc)) {
+					return true;
+				}
+			}
+		}
+		if (!silent) {
+			std::string buffer = fmt::format("Couldn't find '{}'... Tried ", ResRef);
+			for (const auto& desc : movieTypes) {
+				AppendFormat(buffer, "{}.{} ", ResRef, desc.GetExt());
+			}
+			Log(WARNING, "ResourceManager", "{}", buffer);
+		}
+		return false;
+	}
 	for (const auto& path : searchPath) {
 		if (path->HasResource(ResRef, type)) {
 			return true;
@@ -145,8 +166,9 @@ bool ResourceManager::Exists(StringView ResRef, const TypeID* type, bool silent)
 		return false;
 	// TODO: check various caches
 	const std::vector<ResourceDesc>& types = PluginMgr::Get()->GetResourceDesc(type);
-	for (const auto& type2 : types) {
-		for (const auto& path : searchPath) {
+	// Path-major existence check to match GetResource behavior and prioritize override
+	for (const auto& path : searchPath) {
+		for (const auto& type2 : types) {
 			if (path->HasResource(ResRef, type2)) {
 				return true;
 			}
@@ -164,6 +186,25 @@ DataStream* ResourceManager::GetResourceStream(StringView ResRef, SClass_ID type
 {
 	if (ResRef.empty())
 		return nullptr;
+	// Special-case: when asked for an MVE resource by SClass_ID, search all MoviePlayer formats
+	if (type == IE_MVE_CLASS_ID) {
+		const std::vector<ResourceDesc>& movieTypes = PluginMgr::Get()->GetResourceDesc(&MoviePlayer::ID);
+		for (const auto& path : searchPath) {
+			for (const auto& desc : movieTypes) {
+				DataStream* ds = path->GetResource(ResRef, desc);
+				if (ds) {
+					if (!silent) {
+						Log(MESSAGE, "ResourceManager", "Found '{}.{}' in '{}'.", ResRef, desc.GetExt(), path->GetDescription());
+					}
+					return ds;
+				}
+			}
+		}
+		if (!silent) {
+			Log(ERROR, "ResourceManager", "Couldn't find '{}.[movie]'.", ResRef);
+		}
+		return nullptr;
+	}
 	for (const auto& path : searchPath) {
 		DataStream* ds = path->GetResource(ResRef, type);
 		if (ds) {
@@ -193,8 +234,10 @@ ResourceHolder<Resource> ResourceManager::GetResource(StringView ResRef, const T
 		std::sort(types2.begin(), types2.end(), [&prefferedType](auto& a, auto& b) { return (a.GetKeyType() == prefferedType ? true : (a.GetKeyType() < b.GetKeyType())); });
 	}
 
-	for (const auto& type2 : types2) {
-		for (const auto& path : searchPath) {
+	// Path-major search: try all supported extensions within each path before moving on.
+	// This ensures override directories can provide resources using any supported extension.
+	for (const auto& path : searchPath) {
+		for (const auto& type2 : types2) {
 			DataStream* str = path->GetResource(ResRef, type2);
 			if (!str) continue;
 
