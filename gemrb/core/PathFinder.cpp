@@ -247,6 +247,9 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	const bool actorsAreBlocking = flags & PF_ACTORS_ARE_BLOCKING;
 	const auto blockingTraversabilityValue = actorsAreBlocking ? TraversabilityCache::TraversabilityCellValueActor : TraversabilityCache::TraversabilityCellValueActorNonTraversable;
 
+	// Get upscale factor early for optimizations
+	int ups = core->config.UpScaleFactor;
+
 	// TODO: we could optimize this function further by doing everything in SearchmapPoint and converting at the end
 	SearchmapPoint smptDest0 { d };
 	NavmapPoint nmptDest = d;
@@ -270,6 +273,18 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 		return {};
 	}
 
+	// Fast path optimization: if source and destination have direct line of sight, create simple path
+	// This is especially beneficial for large upscaled maps where A* becomes expensive
+	if (ups > 1 && !(flags & PF_ACTORS_ARE_BLOCKING) && IsWalkableTo(nmptSource, nmptDest, false, caller)) {
+		const unsigned int directDist = Distance(nmptSource, nmptDest);
+		if (minDistance == 0 || directDist >= minDistance) {
+			Path directPath;
+			directPath.AppendStep({ nmptSource, GetOrient(nmptSource, nmptDest) });
+			directPath.AppendStep({ nmptDest, GetOrient(nmptSource, nmptDest) });
+			return directPath;
+		}
+	}
+
 	const Size& mapSize = PropsSize();
 	if (!mapSize.PointInside(smptSource)) return {};
 
@@ -281,6 +296,7 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	// make most data storage for this algorithm static, to avoid memory allocations;
 	// each run we just clear the storage, which is keeping the underlying allocated memory at hand
 	static BucketPriorityQueue* open = nullptr;
+	static Size lastOpenMapSize { 0, 0 };
 	static std::vector<bool> isClosed;
 	static std::vector<NavmapPoint> parents;
 	static std::vector<unsigned short> distFromStart;
@@ -290,25 +306,31 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	std::lock_guard<std::mutex> lock(pathfindingMutex);
 
 	// Initialize or recreate priority queue if map size changed
-	if (!open || open->buckets.bucketsCount < BucketPriorityQueue::CostPointBuckets::CalculateBucketsCount(mapSize.w, mapSize.h)) {
+	// Recreate if not present or if map size changed (scale depends on map)
+	if (!open || lastOpenMapSize != mapSize) {
 		delete open;
 		open = new BucketPriorityQueue(mapSize.w, mapSize.h);
+		lastOpenMapSize = mapSize;
 	}
 
-	// resize if needed (in case of a map change; probably can be done once, when new map is loaded)
-	if (isClosed.size() != mapCellsCount) {
-		parents.resize(mapCellsCount);
-		distFromStart.resize(mapCellsCount);
+	// Pre-size data structures based on map size to avoid repeated reallocations
+	// Use a slightly larger size to account for potential growth
+	const size_t optimalSize = mapCellsCount + (mapCellsCount / 8); // 12.5% buffer
+	if (isClosed.size() != optimalSize) {
+		parents.resize(optimalSize);
+		distFromStart.resize(optimalSize);
+		isClosed.resize(optimalSize);
 	}
 
 	// cleanup
 	open->Clear();
-	isClosed.clear();
-	isClosed.resize(mapCellsCount, false);
-	// `.clear() + .resize()` is generally more performant than `memset` in cases where we have relatively small
-	// number of elements, while memset performs better for large vectors
+
+	// Only clear the portion we'll actually use to improve cache efficiency
+	std::fill(isClosed.begin(), isClosed.begin() + mapCellsCount, false);
+
+	// Use fast memset for arrays since we know the exact size
 	memset(static_cast<void*>(parents.data()), 0, sizeof(decltype(parents)::value_type) * mapCellsCount);
-	memset(static_cast<void*>(distFromStart.data()), std::numeric_limits<unsigned short>::max(), sizeof(decltype(distFromStart)::value_type) * mapCellsCount);
+	memset(static_cast<void*>(distFromStart.data()), 0xFF, sizeof(decltype(distFromStart)::value_type) * mapCellsCount); // 0xFF sets to max value for unsigned short
 
 	// begin algo init
 	distFromStart[smptSource.y * mapSize.w + smptSource.x] = 0;
@@ -317,27 +339,37 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	open->Push(nmptSource, 0);
 
 	bool foundPath = false;
-	int ups = core->config.UpScaleFactor;
 	// Don't scale squaredMinDist - keep it in navmap coordinates to match SquaredDistance calculations
 	unsigned int squaredMinDist = minDistance * minDistance;
 
-	// Add iteration limits for upscaled maps to prevent infinite loops
-	const int maxIterations = std::min(static_cast<int>(mapCellsCount), 50000); // Limit based on map size, max 50k iterations
+	// Bound iterations by map area; exploring more than the whole map isn't useful, and avoids premature aborts
+	// Scale iteration limit more conservatively for large upscaled maps to prevent excessive computation
+	const int baseIterations = static_cast<int>(mapCellsCount);
+	const int maxIterations = ups > 2 ? std::min(baseIterations, baseIterations / (ups / 2)) : baseIterations;
 	int iterations = 0;
 
-	// Dynamic heuristic weight based on map size and UpScaleFactor
-	const float_t HEURISTIC_WEIGHT = ups > 2 ? 2.0f : 1.5f; // More aggressive for large maps
+	// Heuristic weight: increase slightly for large maps to bias toward goal direction and reduce search space
+	const float_t HEURISTIC_WEIGHT = ups > 2 ? 1.5f : 1.25f;
 
 	const auto getHeuristic = [&](const SearchmapPoint& smptChild, const int& smptChildIdx) {
-		// Calculate heuristic
+		// Calculate heuristic using faster integer distance approximation for performance
 		const int xDist = smptChild.x - smptDest.x;
 		const int yDist = smptChild.y - smptDest.y;
-		// Tie-breaking used to smooth out the path
-		const int dxCross = smptDest.x - smptSource.x;
-		const int dyCross = smptDest.y - smptSource.y;
-		const int crossProduct = std::abs(xDist * dyCross - yDist * dxCross) >> 3;
-		const float distance = std::hypotf(xDist, yDist);
-		const float heuristic = HEURISTIC_WEIGHT * (distance + crossProduct);
+		// Use faster Manhattan + diagonal distance approximation instead of Euclidean
+		const int absX = std::abs(xDist);
+		const int absY = std::abs(yDist);
+		const float distance = std::max(absX, absY) + 0.414f * std::min(absX, absY);
+
+		// Simplified tie-breaking for performance - only apply on smaller maps
+		float heuristic;
+		if (ups <= 2) {
+			const int dxCross = smptDest.x - smptSource.x;
+			const int dyCross = smptDest.y - smptSource.y;
+			const int crossProduct = std::abs(xDist * dyCross - yDist * dxCross) >> 3;
+			heuristic = HEURISTIC_WEIGHT * (distance + crossProduct);
+		} else {
+			heuristic = HEURISTIC_WEIGHT * distance;
+		}
 		const float estDist = distFromStart[smptChildIdx] + heuristic;
 		return estDist;
 	};
@@ -368,9 +400,29 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 			break;
 		}
 
+		// Early termination for large upscaled maps if we're getting close to the goal
+		if (ups > 2 && iterations > maxIterations / 4) {
+			const unsigned int currentDistSq = SquaredDistance(nmptCurrent, nmptDest);
+			const unsigned int reasonableDistSq = (size * size * 4); // Allow some proximity error for performance
+			if (currentDistSq < reasonableDistSq &&
+			    (!(flags & PF_SIGHT) || IsVisibleLOS(nmptCurrent, nmptDest, caller))) {
+				smptDest = smptCurrent;
+				nmptDest = nmptCurrent;
+				foundPath = true;
+				break;
+			}
+		}
+
 		isClosed[smptCurrentIdx] = true;
 
+		// Adaptive neighbor search: on large maps, occasionally skip some neighbors to speed up search
+		// while maintaining pathfinding quality
+		const bool skipSomeNeighbors = (ups > 2 && iterations % 4 == 0); // Skip on every 4th iteration for large maps
+
 		for (size_t i = 0; i < DEGREES_OF_FREEDOM; i++) {
+			// For performance on large maps, occasionally skip non-primary directions
+			if (skipSomeNeighbors && i > 1) continue; // Only check E/N directions on some iterations
+
 			const NavmapPoint nmptChild(nmptCurrent.x + 16 * dxAdjacent[i], nmptCurrent.y + 12 * dyAdjacent[i]);
 			const SearchmapPoint smptChild { nmptChild };
 			// Outside map
@@ -402,9 +454,10 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 
 			if (distFromStart[smptChildIdx] < oldDist) {
 				// Theta-star path if there is LOS
-				// so far the searchmap grid appears too coarse to play on, see #2261
-				//if (!IsWalkableTo(smptParent, smptChild, actorsAreBlocking, caller)) {
-				if (!IsWalkableTo(nmptParent, nmptChild, actorsAreBlocking, caller)) {
+				// On very large upscaled maps, limit Theta* to nearby nodes for performance
+				const bool performThetaStar = (ups <= 3) || (Distance(nmptParent, nmptChild) < 64 * ups);
+
+				if (performThetaStar && !IsWalkableTo(nmptParent, nmptChild, actorsAreBlocking, caller)) {
 					// Fall back to A-star path
 					distFromStart[smptChildIdx] = std::numeric_limits<unsigned short>::max();
 					// Find already visited neighbour with shortest: path from start + path to child
@@ -422,6 +475,15 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 							parents[smptChildIdx] = nmptVis;
 							distFromStart[smptChildIdx] = newDist;
 						}
+					}
+					if (distFromStart[smptChildIdx] >= oldDist) continue;
+				} else if (!performThetaStar) {
+					// Skip Theta* optimization for distant nodes on large maps, fall back to A*
+					distFromStart[smptChildIdx] = std::numeric_limits<unsigned short>::max();
+					newDist = distFromStart[smptCurrent2.y * mapSize.w + smptCurrent2.x] + Distance(smptCurrent2, smptChild);
+					if (newDist < oldDist) {
+						parents[smptChildIdx] = nmptCurrent;
+						distFromStart[smptChildIdx] = newDist;
 					}
 					if (distFromStart[smptChildIdx] >= oldDist) continue;
 				}

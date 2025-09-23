@@ -480,7 +480,6 @@ void WEDImporter::ReadWallPolygons()
 
 WallPolygonGroup WEDImporter::MakeGroupFromTableEntries(size_t idx, size_t cnt) const
 {
-	Log(DEBUG, "WEDImporter", "MakeGroupFromTableEntries: idx={} cnt={} polygonTable.size={}", idx, cnt, polygonTable.size());
 	auto begin = polygonTable.begin() + idx;
 	auto end = begin + cnt;
 	WallPolygonGroup grp;
@@ -500,9 +499,6 @@ std::vector<WallPolygonGroup> WEDImporter::GetWallGroups() const
 		str->ReadWord(idx);
 	}
 
-	Log(DEBUG, "WEDImporter", "GetWallGroups: PLTOffset=0x{:x} VerticesOffset=0x{:x} PLTSize={} polygonTable.size={}",
-	    PLTOffset, VerticesOffset, PLTSize, polygonTable.size());
-
 	auto ceilInt = [](int32_t v, int32_t div) {
 		if (v % div == 0) {
 			return v / div;
@@ -521,8 +517,6 @@ std::vector<WallPolygonGroup> WEDImporter::GetWallGroups() const
 
 	// The wallgroups table ends at PLTOffset. Each entry is 2x WORD (index,count) => 4 bytes.
 	const size_t actualGroups = (PLTOffset > WallGroupsOffset) ? (PLTOffset - WallGroupsOffset) / 4 : 0;
-	Log(DEBUG, "WEDImporter", "GetWallGroups: computedGroupSize={} actualGroups={} (bytes: {})",
-	    groupSize, actualGroups, (PLTOffset > WallGroupsOffset) ? (PLTOffset - WallGroupsOffset) : 0);
 	if (actualGroups && actualGroups != groupSize) {
 		Log(WARNING, "WEDImporter", "Wall group count mismatch: computed={} file={} — capping to file size to avoid overread.",
 		    groupSize, actualGroups);
@@ -539,11 +533,9 @@ std::vector<WallPolygonGroup> WEDImporter::GetWallGroups() const
 
 		polygonGroups.emplace_back();
 		WallPolygonGroup& group = polygonGroups.back();
-		Log(DEBUG, "WEDImporter", "WallGroup {}: startIndex={} count={} (PLT range [{} , {}))", i, index, count, index, index + count);
 
 		for (size_t j = index; j < index + count; ++j) {
 			ieWord polyIndex = PLT[j];
-			Log(DEBUG, "WEDImporter", "  PLT[{}] -> polyIndex={} polygonTable.size={}", j, polyIndex, polygonTable.size());
 			auto wp = polygonTable[polyIndex];
 			if (wp) {
 				group.push_back(wp);
