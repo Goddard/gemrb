@@ -180,8 +180,7 @@ def ExitPress():
 	#quit subwindow
 	QuitWindow = GemRB.LoadWindow (3, "START")
 	Pos = QuitWindow.GetPos ()
-	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-	QuitWindow.SetPos (Pos[0] - int(3 * scale_factor), Pos[1] + int(12 * scale_factor))
+	QuitWindow.SetPos (Pos[0] - 3, Pos[1] + 12)
 	QuitTextArea = QuitWindow.GetControl (0)
 	CancelButton = QuitWindow.GetControl (2)
 	ConfirmButton = QuitWindow.GetControl (1)

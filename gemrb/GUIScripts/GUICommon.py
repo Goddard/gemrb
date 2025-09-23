@@ -76,6 +76,10 @@ def GetWindowPack():
 			# 	return "GUIW08"
 			# else:
 			# 	return default
+		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
+		if(scale_factor > 1):
+			return default
+		
 		if height >= 768 and GemRB.HasResource ("GUIW10", RES_CHU, 1):
 			return "GUIW10"
 		elif height >= 600 and GemRB.HasResource ("GUIW08", RES_CHU, 1):

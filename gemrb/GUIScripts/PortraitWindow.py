@@ -34,8 +34,7 @@ if GameCheck.IsIWD1() or GameCheck.IsIWD2():
 	StatesFont = "STATES"
 
 # Use logical screen height for layout calculations to account for upscaled assets
-scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-ScreenHeight = GemRB.GetSystemVariable (SV_HEIGHT) // scale_factor
+ScreenHeight = GemRB.GetSystemVariable (SV_HEIGHT)
 
 def SetupDamageInfo (Button):
 	pc = Button.Value

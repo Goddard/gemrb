@@ -86,12 +86,10 @@ def OpenHLAWindow (actor, numclasses, classes, levels):
 	# create a scrollbar if need-be
 	if len (HLAAbilities) >= 25:
 		# setup extra 25th HLA slot:
-		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-		HLAWindow.CreateButton (24, int(231 * scale_factor), int(345 * scale_factor), int(42 * scale_factor), int(42 * scale_factor))
+		HLAWindow.CreateButton (24, 231, 345, 42, 42)
 		if ( len (HLAAbilities) > 25):
 			# setup scrollbar
-			scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-			ScrollBar = HLAWindow.CreateScrollBar (1000, {'x' : int(290 * scale_factor), 'y' : int(142 * scale_factor), 'w' : int(16 * scale_factor), 'h' : int(252 * scale_factor)}, "GUISCRCW")
+			ScrollBar = HLAWindow.CreateScrollBar (1000, {'x' : 290, 'y' : 142, 'w' : 16, 'h' : 252}, "GUISCRCW")
 			ScrollBar.OnChange (HLAShowAbilities)
 			#with enhanced GUI we have 5 rows of 5 abilities (the last one is 'the extra slot')
 			count = GUICommon.ceildiv (len(HLAAbilities) - 25, 5) + 1

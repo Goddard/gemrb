@@ -90,25 +90,34 @@ def OnLoad():
 # or if we are going to do this a lot maybe add a view flag for automatically resizing to the assigned background
 # TODO: add a GUIScript function to return a dict with a CObject<Sprite2D> + dimensions for a given resref
 scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-WinSizes = {GS_SMALLDIALOG : int(45 * scale_factor),
-			GS_MEDIUMDIALOG : int(109 * scale_factor),
-			GS_LARGEDIALOG : int(237 * scale_factor)}
+WinSizes = {GS_SMALLDIALOG : 45 * scale_factor,
+			GS_MEDIUMDIALOG : 109 * scale_factor,
+			GS_LARGEDIALOG : 237 * scale_factor}
 
 def MWinBG(size, width=None):
 	if width is None:
 		# Use logical width for layout decisions to account for upscaled assets
-		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
-		width = GemRB.GetSystemVariable (SV_WIDTH) // scale_factor
+		width = GemRB.GetSystemVariable (SV_WIDTH)
 
+	scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
 	bg = None
 	if size == GS_SMALLDIALOG:
+		if(scale_factor > 1):
+			return "guiwbtp2"
+		
 		if width == 640:
 			bg = "guiwbtp2"
 		else:
 			bg = "guwbtp2"
 	elif size == GS_MEDIUMDIALOG:
+		if(scale_factor > 1):
+			return "guiwdmb"
+		
 		bg = "guiwdmb"
 	elif size == GS_LARGEDIALOG:
+		if(scale_factor > 1):
+			return "guiwbtp3"
+		
 		if width == 640:
 			bg = "guiwbtp3"
 		else:
@@ -189,10 +198,9 @@ def UpdateControlStatus(init = False):
 		if size not in WinSizes:
 			return
 
-		scale_factor = GemRB.GetSystemVariable(SV_UPSCALEFACTOR)
 		frame = ContractButton.GetFrame()
 		if size != GS_SMALLDIALOG:
-			frame['y'] -= (frame['h'] + int(6 * scale_factor))
+			frame['y'] -= (frame['h'] + 6)
 		ExpandButton.SetFrame(frame)
 
 		frame = MessageWindow.GetFrame()
