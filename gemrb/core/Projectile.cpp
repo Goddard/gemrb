@@ -2113,55 +2113,55 @@ Point Projectile::GetStartOffset(const Actor* actor)
 
 	// regular selection circle offset
 	Size ellipse = GetEllipseSize(actor->GetAnims()->GetCircleSize());
+	const int s = core->config.UpScaleFactor;
 
 	int offset;
 	switch (actor->GetOrientation()) {
 		case S:
 		case SSW:
-			start.y += ellipse.h / 2;
+			start.y += (ellipse.h / 2) / s;
 			break;
 		case SW:
 		case WSW:
 			offset = GetEllipseOffset(ellipse);
-			start.x -= offset;
-			start.y += offset;
+			start.x -= (offset * s);
+			start.y += (offset / s);
 			break;
 		case W:
 		case WNW:
-			start.x -= ellipse.w * 2;
-			start.y += 1;
+			start.x -= (ellipse.w * 2) * s;
+			start.y += s;
 			break;
 		case NW:
 		case NNW:
 			offset = GetEllipseOffset(ellipse);
-			start.x -= offset;
-			start.y -= offset;
+			start.x -= (offset * s);
+			start.y -= (offset * s);
 			break;
 		case N:
 		case NNE:
-			start.y -= ellipse.h * 2;
+			start.y -= (ellipse.h * 2) * s;
 			break;
 		case NE:
 		case ENE:
 			offset = GetEllipseOffset(ellipse);
-			start.x += offset;
-			start.y -= offset;
+			start.x += (offset * s);
+			start.y -= (offset * s);
 			break;
 		case E:
 		case ESE:
-			start.x += ellipse.w * 2;
-			start.y += 1;
+			start.x += (ellipse.w * 2) * s;
+			start.y += s;
 			break;
 		case SE:
 		case SSE:
 			offset = GetEllipseOffset(ellipse);
-			start.x += offset;
-			start.y += offset;
+			start.x += (offset * s);
+			start.y += (offset / s);
 			break;
-		default: // currently impossible
+		default:
 			error("Projectile", "Bad orientation!");
 	}
 	return start;
 }
-
 }
