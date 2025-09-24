@@ -374,6 +374,32 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 		return estDist;
 	};
 
+	// Penalize nodes that are close to impassable tiles to keep waypoints away from walls
+	// Uses a small Chebyshev radius ring check on the searchmap. Low-cost, local, and effective.
+	const auto nearWallPenalty = [&](const SearchmapPoint& smpt) -> unsigned short {
+		// Larger maps get a slightly larger clearance radius and penalty
+		const int maxR = (ups > 2) ? 2 : 1; // in searchmap cells
+		for (int r = 1; r <= maxR; ++r) {
+			for (int dy = -r; dy <= r; ++dy) {
+				for (int dx = -r; dx <= r; ++dx) {
+					if (std::max(std::abs(dx), std::abs(dy)) != r) continue; // ring only
+					const int nx = smpt.x + dx;
+					const int ny = smpt.y + dy;
+					if (nx < 0 || ny < 0 || nx >= mapSize.w || ny >= mapSize.h) continue;
+					const SearchmapPoint around { nx, ny };
+					const PathMapFlags aroundFlags = (this->*getChildBlockedStatusFn)(around, size);
+					const bool aroundBlocked = !(aroundFlags & (PathMapFlags::PASSABLE | PathMapFlags::ACTOR));
+					if (aroundBlocked) {
+						// Higher penalty the closer we are; base step scaled slightly for upscaled maps
+						const unsigned short base = (ups > 2) ? 2 : 1;
+						return static_cast<unsigned short>(base * (maxR - (r - 1)));
+					}
+				}
+			}
+		}
+		return 0;
+	};
+
 	while (!open->IsEmpty() && iterations < maxIterations) {
 		++iterations;
 		const NavmapPoint nmptCurrent = open->Pop();
@@ -400,29 +426,8 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 			break;
 		}
 
-		// Early termination for large upscaled maps if we're getting close to the goal
-		if (ups > 2 && iterations > maxIterations / 4) {
-			const unsigned int currentDistSq = SquaredDistance(nmptCurrent, nmptDest);
-			const unsigned int reasonableDistSq = (size * size * 4); // Allow some proximity error for performance
-			if (currentDistSq < reasonableDistSq &&
-			    (!(flags & PF_SIGHT) || IsVisibleLOS(nmptCurrent, nmptDest, caller))) {
-				smptDest = smptCurrent;
-				nmptDest = nmptCurrent;
-				foundPath = true;
-				break;
-			}
-		}
-
 		isClosed[smptCurrentIdx] = true;
-
-		// Adaptive neighbor search: on large maps, occasionally skip some neighbors to speed up search
-		// while maintaining pathfinding quality
-		const bool skipSomeNeighbors = (ups > 2 && iterations % 4 == 0); // Skip on every 4th iteration for large maps
-
 		for (size_t i = 0; i < DEGREES_OF_FREEDOM; i++) {
-			// For performance on large maps, occasionally skip non-primary directions
-			if (skipSomeNeighbors && i > 1) continue; // Only check E/N directions on some iterations
-
 			const NavmapPoint nmptChild(nmptCurrent.x + 16 * dxAdjacent[i], nmptCurrent.y + 12 * dyAdjacent[i]);
 			const SearchmapPoint smptChild { nmptChild };
 			// Outside map
@@ -446,16 +451,17 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 			unsigned short oldDist = distFromStart[smptChildIdx];
 
 			// Lazy Theta star*
-			unsigned short newDist = distFromStart[smptParent.y * mapSize.w + smptParent.x] + Distance(smptParent, smptChild);
-			if (newDist < oldDist) {
+			unsigned short newDist = static_cast<unsigned short>(distFromStart[smptParent.y * mapSize.w + smptParent.x] + Distance(smptParent, smptChild));
+			unsigned short penalizedDist = static_cast<unsigned short>(newDist + nearWallPenalty(smptChild));
+			if (penalizedDist < oldDist) {
 				parents[smptChildIdx] = nmptParent;
-				distFromStart[smptChildIdx] = newDist;
+				distFromStart[smptChildIdx] = penalizedDist;
 			}
 
 			if (distFromStart[smptChildIdx] < oldDist) {
 				// Theta-star path if there is LOS
 				// On very large upscaled maps, limit Theta* to nearby nodes for performance
-				const bool performThetaStar = (ups <= 3) || (Distance(nmptParent, nmptChild) < 64 * ups);
+				const bool performThetaStar = (ups <= 3) || (Distance(nmptParent, nmptChild) < static_cast<unsigned int>(20 * ups));
 
 				if (performThetaStar && !IsWalkableTo(nmptParent, nmptChild, actorsAreBlocking, caller)) {
 					// Fall back to A-star path
@@ -470,20 +476,22 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 						if (!isClosed[smptVis.y * mapSize.w + smptVis.x]) continue;
 
 						unsigned short oldVisDist = distFromStart[smptChildIdx];
-						newDist = distFromStart[smptVis.y * mapSize.w + smptVis.x] + Distance(smptVis, smptChild);
-						if (newDist < oldVisDist) {
+						newDist = static_cast<unsigned short>(distFromStart[smptVis.y * mapSize.w + smptVis.x] + Distance(smptVis, smptChild));
+						penalizedDist = static_cast<unsigned short>(newDist + nearWallPenalty(smptChild));
+						if (penalizedDist < oldVisDist) {
 							parents[smptChildIdx] = nmptVis;
-							distFromStart[smptChildIdx] = newDist;
+							distFromStart[smptChildIdx] = penalizedDist;
 						}
 					}
 					if (distFromStart[smptChildIdx] >= oldDist) continue;
 				} else if (!performThetaStar) {
 					// Skip Theta* optimization for distant nodes on large maps, fall back to A*
 					distFromStart[smptChildIdx] = std::numeric_limits<unsigned short>::max();
-					newDist = distFromStart[smptCurrent2.y * mapSize.w + smptCurrent2.x] + Distance(smptCurrent2, smptChild);
-					if (newDist < oldDist) {
+					newDist = static_cast<unsigned short>(distFromStart[smptCurrent2.y * mapSize.w + smptCurrent2.x] + Distance(smptCurrent2, smptChild));
+					penalizedDist = static_cast<unsigned short>(newDist + nearWallPenalty(smptChild));
+					if (penalizedDist < oldDist) {
 						parents[smptChildIdx] = nmptCurrent;
-						distFromStart[smptChildIdx] = newDist;
+						distFromStart[smptChildIdx] = penalizedDist;
 					}
 					if (distFromStart[smptChildIdx] >= oldDist) continue;
 				}
@@ -495,30 +503,116 @@ Path Map::FindPath(const Point& s, const Point& d, const unsigned int size, unsi
 	}
 
 	if (foundPath) {
-		Path resultPath;
-		NavmapPoint nmptCurrent = nmptDest;
-		NavmapPoint nmptParent;
-		SearchmapPoint smptCurrent { nmptCurrent };
-		while (!resultPath || nmptCurrent != parents[smptCurrent.y * mapSize.w + smptCurrent.x]) {
-			nmptParent = parents[smptCurrent.y * mapSize.w + smptCurrent.x];
-			PathNode newStep { nmptCurrent, S };
-			// movement in general allows characters to walk backwards given that
-			// the destination is behind the character (within a threshold), and
-			// that the distance isn't too far away
-			// we approximate that with a relaxed collinearity check and intentionally
-			// skip the first step, otherwise it doesn't help with iwd beetles in ar1015
-			if (flags & PF_BACKAWAY && resultPath && std::abs(area2(nmptCurrent, resultPath.GetStep(0).point, nmptParent)) < 300) {
-				newStep.orient = GetOrient(nmptCurrent, nmptParent);
-			} else {
-				newStep.orient = GetOrient(nmptParent, nmptCurrent);
+		// If we're on an upscaled map, post-process the reconstructed chain to reduce
+		// waypoint density while preserving line-of-sight and keeping a reasonable spacing.
+		if (ups > 1) {
+			// 1) Reconstruct full chain from source -> destination
+			std::vector<NavmapPoint> chain;
+			{
+				std::vector<NavmapPoint> rev;
+				NavmapPoint cur = nmptDest;
+				SearchmapPoint smptCur { cur };
+				while (true) {
+					rev.push_back(cur);
+					NavmapPoint par = parents[smptCur.y * mapSize.w + smptCur.x];
+					if (cur == par) break; // reached source (parent points to itself)
+					cur = par;
+					smptCur = SearchmapPoint(cur);
+				}
+				// reverse to get source -> dest order
+				chain.assign(rev.rbegin(), rev.rend());
 			}
 
-			resultPath.PrependStep(newStep);
-			nmptCurrent = nmptParent;
+			// 2) LOS-based compression with minimum spacing
+			std::vector<NavmapPoint> simplified;
+			simplified.reserve(chain.size());
+			if (!chain.empty()) simplified.push_back(chain.front());
 
-			smptCurrent = SearchmapPoint(nmptCurrent);
+			// Minimum spacing scaled with map upscale; slightly larger for big ups
+			const float spacingMult = (ups > 2) ? 1.25f : 1.0f;
+			const unsigned int minSpacing = static_cast<unsigned int>(GetSearchmapSquareDiagonal() * spacingMult);
+
+			size_t lastKeptIdx = 0;
+			while (lastKeptIdx + 1 < chain.size()) {
+				size_t farIdx = lastKeptIdx + 1;
+				// Extend as far as LOS allows
+				for (size_t k = farIdx + 1; k < chain.size(); ++k) {
+					if (IsWalkableTo(chain[lastKeptIdx], chain[k], actorsAreBlocking, caller)) {
+						farIdx = k;
+					} else {
+						break;
+					}
+				}
+
+				// Try to ensure reasonable spacing; if jump is tiny, see if we can pick a farther visible point
+				size_t targetIdx = farIdx;
+				if (Distance(chain[lastKeptIdx], chain[targetIdx]) < minSpacing) {
+					for (size_t k = farIdx + 1; k < chain.size(); ++k) {
+						if (!IsWalkableTo(chain[lastKeptIdx], chain[k], actorsAreBlocking, caller)) break;
+						if (Distance(chain[lastKeptIdx], chain[k]) >= minSpacing) {
+							targetIdx = k;
+						} else {
+							// keep searching, but remember the last LOS-valid
+							targetIdx = k;
+						}
+					}
+				}
+
+				simplified.push_back(chain[targetIdx]);
+				lastKeptIdx = targetIdx;
+			}
+
+			// 3) Build final Path with orientations
+			// If compression results in no actual movement, return empty path
+			if (simplified.size() < 2) {
+				return {};
+			}
+
+			Path resultPath;
+			for (size_t i = 1; i < simplified.size(); ++i) {
+				const NavmapPoint& prev = simplified[i - 1];
+				const NavmapPoint& curr = simplified[i];
+				PathNode step { curr, S };
+				if ((flags & PF_BACKAWAY) && i == 1) {
+					// preserve back-away behavior for the first movement segment
+					step.orient = GetOrient(curr, prev);
+				} else {
+					step.orient = GetOrient(prev, curr);
+				}
+				resultPath.AppendStep(std::move(step));
+			}
+
+			if (InDebugMode(DebugMode::PATHFINDER)) {
+				Log(DEBUG, "FindPath", "Compressed path nodes: {} -> {} (final: {}) (ups = {}, spacing = {}))",
+				    chain.size(), simplified.size(), resultPath.Size(), ups, minSpacing);
+			}
+
+			return resultPath;
+		} else {
+			// Original reconstruction for non-upscaled maps (preserve legacy behavior)
+			Path resultPath;
+			NavmapPoint nmptCurrent = nmptDest;
+			NavmapPoint nmptParent;
+			SearchmapPoint smptCurrent { nmptCurrent };
+			while (!resultPath || nmptCurrent != parents[smptCurrent.y * mapSize.w + smptCurrent.x]) {
+				nmptParent = parents[smptCurrent.y * mapSize.w + smptCurrent.x];
+				PathNode newStep { nmptCurrent, S };
+				// movement in general allows characters to walk backwards given that
+				// the destination is behind the character (within a threshold), and
+				// that the distance isn't too far away
+				// we approximate that with a relaxed collinearity check and intentionally
+				// skip the first step, otherwise it doesn't help with iwd beetles in ar1015
+				if (flags & PF_BACKAWAY && resultPath && std::abs(area2(nmptCurrent, resultPath.GetStep(0).point, nmptParent)) < 300) {
+					newStep.orient = GetOrient(nmptCurrent, nmptParent);
+				} else {
+					newStep.orient = GetOrient(nmptParent, nmptCurrent);
+				}
+				resultPath.PrependStep(newStep);
+				nmptCurrent = nmptParent;
+				smptCurrent = SearchmapPoint(nmptCurrent);
+			}
+			return resultPath;
 		}
-		return resultPath;
 	} else if (InDebugMode(DebugMode::PATHFINDER)) {
 		if (caller) {
 			if (iterations >= maxIterations) {
