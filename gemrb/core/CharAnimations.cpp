@@ -3054,9 +3054,10 @@ Holder<Sprite2D> GetPaperdollImage(const ResRef& resref, const ieDword* colors, 
 			break;
 		}
 	}
+	const int ups = core->config.UpScaleFactor;
 	assert(first && second);
 	picture2 = second->copy();
-	picture2->Frame.y -= 80;
+	picture2->Frame.y -= 80 * ups;
 
 	Holder<Sprite2D> spr = first->copy();
 
